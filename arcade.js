@@ -278,8 +278,24 @@ addEventListener("message", (e) => {
   if (d.type === "rexy:needsauth") { openDrawer(); say("Sign in to post a score to the global board."); }
 });
 
+// An auth email can return with an error in the hash instead of a session.
+// Left unhandled that just looks like "nothing happened", so say what went wrong.
+function consumeAuthHash() {
+  const h = location.hash || "";
+  if (!h.includes("error")) return null;
+  const q = new URLSearchParams(h.replace(/^#/, ""));
+  const code = q.get("error_code") || q.get("error") || "";
+  const desc = (q.get("error_description") || "").replace(/\+/g, " ");
+  history.replaceState(null, "", location.pathname + location.search);
+  if (/expired|invalid/i.test(code + desc))
+    return "That sign-in link didn't work — they're single use and last an hour. " +
+           "Request a fresh one and open it straight away, in this browser.";
+  return desc || code || "Sign-in failed.";
+}
+
 // ---------- boot ----------
 (async function boot() {
+  const authErr = consumeAuthHash();
   try {
     GAMES = await (await fetch("games.json", { cache: "no-cache" })).json();
   } catch (e) {
@@ -306,6 +322,7 @@ addEventListener("message", (e) => {
   currentUser = await Rexy.getUser().catch(() => null);
   await refreshProfile();
   renderAuth();
-  if (!currentUser) say("Not signed in.");
+  if (authErr) { openDrawer(); say(authErr, true); }
+  else if (!currentUser) say("Not signed in.");
   route();
 })();
