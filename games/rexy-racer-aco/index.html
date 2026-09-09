@@ -80,6 +80,11 @@
   tr.pending td{color:var(--accent); background:rgba(255,194,51,.07)}
   .blank{display:inline-block; min-width:110px; border-bottom:1px dashed #4a5666; opacity:.7}
   .note{font-size:11px; color:var(--dim); margin-top:12px}
+  select{background:#0e131a; border:1px solid #2b3441; color:var(--ink);
+    border-radius:9px; padding:10px 12px; font-size:14px; font-family:inherit; width:220px}
+  select:focus{outline:0; border-color:var(--accent)}
+  .arcLbl{font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--dim); margin-bottom:7px}
   .hidden{display:none !important}
 </style>
 
@@ -144,6 +149,16 @@
     <div class="medal" id="eMedal"></div>
     <div class="result" id="eTotal"></div>
     <div class="brk" id="eBrk"></div>
+    <div id="arcadeBlock" class="hidden">
+      <div class="arcLbl">Played with</div>
+      <div class="row"><select id="ctlPick"></select></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnGlobal">Submit to global board</button>
+        <button class="btn ghost" id="btnSkipArc">Skip &mdash; run again</button>
+      </div>
+      <div class="note" id="arcNote"></div>
+    </div>
+
     <div id="entryBlock">
       <div class="row"><input type="text" id="pname" maxlength="14" placeholder="Your name" autocomplete="off" spellcheck="false"></div>
       <div class="row" style="margin-top:12px">
@@ -191,6 +206,12 @@ const PAL = {
   barrier: {body:'#716c66', edge:'#302d2b', light:'#8c8580'},
   grave:   {stone:'#6b7481', shade:'#4a525d', mark:'#2a2f38'}
 };
+
+// Inside the arcade shell the score goes to the global board instead of the
+// local one. Standalone (the ACO event build) this stays false and nothing changes.
+const IN_ARCADE = (function(){ try { return window.parent !== window; } catch(e){ return false; } })();
+const GAME_ID = 'rexy-racer-aco';
+const SCORE_BASE = 600000;   // must match games.json -> score.base
 
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -523,7 +544,15 @@ function finish(){
   $('eTotal').textContent=total.toFixed(2)+'s';
   $('eBrk').textContent='run '+S.elapsed.toFixed(2)+'s  +  penalty '+S.penalty.toFixed(2)+
     's   ·   '+S.touches+' contact'+(S.touches===1?'':'s')+'  ·  '+S.deaths+' death'+(S.deaths===1?'':'s');
-  $('entryBlock').classList.remove('hidden');
+  if(IN_ARCADE){
+    $('entryBlock').classList.add('hidden');
+    $('arcadeBlock').classList.remove('hidden');
+    $('arcNote').textContent = (window.RexyArcade && window.RexyArcade.note) || '';
+    $('btnGlobal').disabled = false;
+    $('btnGlobal').textContent = 'Submit to global board';
+  } else {
+    $('entryBlock').classList.remove('hidden');
+  }
   $('againRow').classList.add('hidden');
   play(m[2]==='gold' ? 'gold' : m[2] ? 'medal' : 'nomedal', 0.8);
   $('storeNote').classList.toggle('hidden',storageOK);
@@ -548,6 +577,28 @@ function commitScore(){
   $('storeNote').classList.toggle('hidden',storageOK);
 }
 $('btnSave').onclick=commitScore;
+$('btnSkipArc').onclick=begin;
+$('btnGlobal').onclick=async function(){
+  const total=lastResult.total;
+  const btn=$('btnGlobal');
+  if(!window.RexyArcade || !window.RexyArcade.submit){
+    $('arcNote').textContent='Global board unavailable — your time is saved locally.';
+    return;
+  }
+  btn.disabled=true; btn.textContent='Submitting…';
+  try{
+    const r=await window.RexyArcade.submit(total, $('ctlPick').value);
+    $('arcNote').textContent='Submitted — you are #'+r.rank+' on the global board.';
+    btn.textContent='Submitted';
+    BOARD.push({name:(window.RexyArcade.displayName||'You'), total:total, when:lastResult.stamp, me:true});
+    BOARD.sort(function(a,b){return a.total-b.total;});
+    saveBoard(); pendingEntry=null; renderEndBoard(); renderStartBoard();
+    $('againRow').classList.remove('hidden');
+  }catch(e){
+    $('arcNote').textContent=(e && e.message) ? e.message : String(e);
+    btn.disabled=false; btn.textContent='Submit to global board';
+  }
+};
 $('pname').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();commitScore();} });
 
 // ---------- loop ----------
@@ -843,4 +894,73 @@ S.hits=TRACK.checkpoints.map(function(){return false;});
 centreCam();
 renderStartBoard();
 requestAnimationFrame(frame);
+</script>
+
+<script type="module">
+// ============================================================
+// Arcade bridge. Only wakes up when this page is embedded in the Rexy Arcade
+// shell (same origin), where it can reuse the shell's Supabase session.
+// Standalone, none of this runs and the local leaderboard is unchanged.
+// ============================================================
+if (IN_ARCADE) {
+  const note = (t) => { const n = document.getElementById('arcNote'); if (n) n.textContent = t; };
+  try {
+    const Rexy = await import('../../lib/rexy-leaderboard.js');
+    await Rexy.init();
+
+    const pick = document.getElementById('ctlPick');
+    pick.innerHTML = Rexy.CONTROLS.map(c => '<option value="' + c[0] + '">' + c[1] + '</option>').join('');
+    const remembered = (function(){ try { return localStorage.getItem('rexyControl'); } catch(e){ return null; } })();
+    if (remembered) pick.value = remembered;
+    pick.addEventListener('change', () => {
+      try { localStorage.setItem('rexyControl', pick.value); } catch(e){}
+    });
+
+    window.RexyArcade = {
+      active: true,
+      displayName: null,
+      note: '',
+      async submit(totalSeconds, control) {
+        // The board ranks high-to-low, so a time trial submits base minus the
+        // elapsed milliseconds. games.json turns it back into a time for display.
+        const score = Math.max(0, SCORE_BASE - Math.round(totalSeconds * 1000));
+        const r = await Rexy.submitScore(GAME_ID, control, score, {
+          meta: { total_ms: Math.round(totalSeconds * 1000), track: 'aco' }
+        });
+        try {
+          window.parent.postMessage({
+            type: 'rexy:gameover', id: GAME_ID, score,
+            control, rank: r.rank
+          }, location.origin);
+        } catch (e) {}
+        return r;
+      }
+    };
+
+    // The shell tells us who is signed in, and again whenever that changes.
+    addEventListener('message', (e) => {
+      if (e.origin !== location.origin) return;
+      const d = e.data;
+      if (!d || d.type !== 'rexy:auth') return;
+      window.RexyArcade.displayName = d.displayName || null;
+      window.RexyArcade.note = d.signedIn
+        ? (d.displayName ? '' : 'Choose a display name in the arcade header first.')
+        : 'Sign in from the arcade header to post to the global board.';
+      note(window.RexyArcade.note);
+    });
+
+    const u = await Rexy.getUser();
+    if (!u) {
+      window.RexyArcade.note = 'Sign in from the arcade header to post to the global board.';
+      try { window.parent.postMessage({ type: 'rexy:needsauth', id: GAME_ID }, location.origin); } catch (e) {}
+    } else {
+      const p = await Rexy.getProfile();
+      window.RexyArcade.displayName = p && p.display_name;
+    }
+    note(window.RexyArcade.note);
+  } catch (e) {
+    window.RexyArcade = { active: false, note: 'Global board unavailable: ' + (e.message || e) };
+    note(window.RexyArcade.note);
+  }
+}
 </script>

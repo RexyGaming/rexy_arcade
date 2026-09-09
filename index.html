@@ -10,7 +10,7 @@
 <body>
 
 <header class="topbar">
-  <div class="brand">
+  <div class="brand" id="brandHome" role="button" tabindex="0" title="Back to the arcade">
     <span class="mark" aria-hidden="true"></span>
     <div>
       <h1>Rexy Arcade</h1>
@@ -25,10 +25,9 @@
   </div>
 </header>
 
-<!-- sign-in / profile drawer, toggled from the header -->
+<!-- sign-in / profile drawer -->
 <div class="drawer hidden" id="drawer">
   <div class="card drawerCard">
-
     <div id="signedOut">
       <div class="section-label">Sign in</div>
       <p class="muted small">
@@ -63,10 +62,52 @@
   </div>
 </div>
 
-<main class="wrap">
+<!-- ---------- home: game grid ---------- -->
+<main class="wrap" id="viewHome">
   <div class="section-label blue">Games</div>
   <div id="grid" class="grid">
-    <div class="placeholder muted">The game grid arrives in step 2.</div>
+    <div class="placeholder muted">Loading games&hellip;</div>
+  </div>
+</main>
+
+<!-- ---------- game view ---------- -->
+<main class="wrap hidden" id="viewGame">
+  <div class="gameTop">
+    <button id="btnBack">&larr; Arcade</button>
+    <div class="gameTitle">
+      <h2 id="gTitle"></h2>
+      <div class="faint small" id="gCredit"></div>
+    </div>
+    <button id="btnGameFull">Full screen</button>
+  </div>
+
+  <div class="gameLayout">
+    <div class="screen" id="screen">
+      <iframe id="gameFrame" title="game" allow="pointer-lock; fullscreen; gamepad"></iframe>
+    </div>
+
+    <aside class="card boardPanel">
+      <div class="section-label gold" style="margin-top:0">Leaderboard</div>
+
+      <label for="fControl">Control</label>
+      <select id="fControl"></select>
+
+      <label>Period</label>
+      <div class="row seg" id="fPeriod">
+        <button data-p="all" class="on">All time</button>
+        <button data-p="week">Week</button>
+        <button data-p="day">Today</button>
+      </div>
+
+      <div class="boardScroll">
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th style="text-align:right">Score</th><th></th></tr></thead>
+          <tbody id="boardBody"></tbody>
+        </table>
+      </div>
+
+      <div class="status" id="boardStatus" style="margin-top:12px">&nbsp;</div>
+    </aside>
   </div>
 </main>
 

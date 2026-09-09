@@ -1,0 +1,18 @@
+[
+  {
+    "id": "rexy-racer-aco",
+    "title": "Rexy Racer — ACO",
+    "description": "Steady-hand time trial. Follow the track, don't touch the walls.",
+    "credit": "Original Unreal game by Koen Ebeling",
+    "thumb": "art/rexy-racer-aco.png",
+    "url": "games/rexy-racer-aco/index.html",
+    "inputs": ["rexy_wheels", "mouse"],
+    "score": {
+      "type": "time",
+      "base": 600000,
+      "decimals": 2,
+      "note": "Submitted as base minus total milliseconds, so faster is a higher score."
+    },
+    "status": "live"
+  }
+]
