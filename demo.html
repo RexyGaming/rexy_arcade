@@ -1,0 +1,128 @@
+<!--
+  SDK reference demo. Lives here because this folder holds the canonical copy of
+  rexy-leaderboard.js — see README. Sign in, set a name, submit a score against
+  each control type and watch the board update.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rexy Leaderboard</title>
+<link rel="stylesheet" href="lib/rexy-theme.css">
+<style>
+  body{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px;}
+  .wrap{width:min(640px,96vw);}
+  .head{margin-bottom:18px;}
+  .head p{color:var(--muted);font-size:.85rem;margin:6px 0 0;}
+  .card{padding:20px 22px;margin-bottom:16px;}
+  .grow{flex:1;min-width:150px;}
+  .rk{width:44px;color:var(--faint);font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <h1>Rexy Leaderboard</h1>
+      <p>Global scores across every Rexy mini-game — pick your control, post a score, read it back.</p>
+    </div>
+
+    <div class="card" id="auth">
+      <div class="section-label">Sign in</div>
+      <label for="email">Email — magic link</label>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email">
+      <div class="row" style="margin-top:12px;">
+        <button class="primary" id="signin">Send magic link</button>
+        <button id="google">Sign in with Google</button>
+      </div>
+    </div>
+
+    <div class="card" id="account" style="display:none;">
+      <div class="section-label gold">Your name</div>
+      <div class="row">
+        <input id="name" class="grow" placeholder="display name" maxlength="24">
+        <button class="primary" id="savename">Save</button>
+        <button id="signout">Sign out</button>
+      </div>
+
+      <div class="section-label blue">Submit a test score</div>
+      <div class="row">
+        <input id="score" type="number" value="1000" style="width:120px;">
+        <select id="control" class="grow"></select>
+        <button class="primary" id="submitScore">Submit</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">Loading…</div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="section-label">Leaderboard</div>
+      <div class="row">
+        <label style="margin:0;">Filter</label>
+        <select id="filter" class="grow"></select>
+        <button id="refresh">↻ Refresh</button>
+      </div>
+      <table style="margin-top:12px;">
+        <thead><tr><th class="rk">#</th><th>Player</th><th>Score</th><th>Control</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="4" class="faint">—</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+<script type="module">
+import * as Rexy from "./lib/rexy-leaderboard.js";
+const GAME = "demo-game";
+const $ = s => document.querySelector(s);
+const status = (m, err=false) => { const el=$("#status"); el.textContent=m; el.className="status"+(err?" err":""); };
+
+$("#control").innerHTML = Rexy.CONTROLS.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+$("#filter").innerHTML = `<option value="all">All controls</option>` + Rexy.CONTROLS.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+
+try { await Rexy.init(); } catch (e) { status(e.message, true); }
+
+Rexy.onAuthChange(async (user) => {
+  $("#auth").style.display = user ? "none" : "block";
+  $("#account").style.display = user ? "block" : "none";
+  if (user) {
+    const p = await Rexy.getProfile();
+    $("#name").value = p?.display_name || "";
+    status(`Signed in as ${user.email}${p?.display_name ? " · "+p.display_name : " · set a name"}`);
+  } else status("Not signed in.");
+  refresh();
+});
+(async()=>{ const u=await Rexy.getUser(); if(!u) status("Not signed in."); })();
+
+$("#signin").onclick = async () => {
+  try { await Rexy.signIn($("#email").value.trim()); status("Magic link sent — check your email, then come back here."); }
+  catch(e){ status(e.message, true); }
+};
+$("#google").onclick = async () => { try { await Rexy.signInWithGoogle(); } catch(e){ status(e.message,true); } };
+$("#signout").onclick = async () => { await Rexy.signOut(); };
+$("#savename").onclick = async () => {
+  try { const r = await Rexy.setDisplayName($("#name").value); status("Name saved: "+r.display_name); refresh(); }
+  catch(e){ status(e.message, true); }
+};
+$("#submitScore").onclick = async () => {
+  try {
+    const control = $("#control").value;
+    const r = await Rexy.submitScore(GAME, control, +$("#score").value, { meta:{ demo:true } });
+    status(`Submitted as ${Rexy.controlLabel(control)}. You're #${r.rank}.`); refresh();
+  } catch(e){ status(e.message, true); }
+};
+$("#filter").onchange = refresh;
+$("#refresh").onclick = refresh;
+
+async function refresh(){
+  try {
+    const rows = await Rexy.getLeaderboard(GAME, $("#filter").value, "all", 50);
+    const me = await Rexy.getUser();
+    $("#rows").innerHTML = rows.length ? rows.map(r =>
+      `<tr class="${me&&r.user_id===me.id?'me':''}"><td class="rk">${r.rank}</td><td>${esc(r.display_name)}</td>
+       <td class="num">${r.score}</td><td><span class="tag">${Rexy.controlLabel(r.control)}</span></td></tr>`).join("")
+      : `<tr><td colspan="4" class="faint">No scores yet.</td></tr>`;
+  } catch(e){ status(e.message, true); }
+}
+function esc(s){ return (s||"").replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+</script>
+</body>
+</html>
