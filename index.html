@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rexy Arcade</title>
+<link rel="stylesheet" href="lib/rexy-theme.css">
+<link rel="stylesheet" href="arcade.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <div>
+      <h1>Rexy Arcade</h1>
+      <div class="tagline faint">Mini-games &amp; global leaderboards</div>
+    </div>
+  </div>
+
+  <div class="authbar" id="authbar">
+    <span class="status-dot" id="authDot" title="connecting"></span>
+    <span class="who muted" id="whoami">Connecting&hellip;</span>
+    <button id="btnAuth" class="hidden">Sign in</button>
+  </div>
+</header>
+
+<!-- sign-in / profile drawer, toggled from the header -->
+<div class="drawer hidden" id="drawer">
+  <div class="card drawerCard">
+
+    <div id="signedOut">
+      <div class="section-label">Sign in</div>
+      <p class="muted small">
+        Signing in once here carries through to every game, so your scores land on
+        the global boards under one name.
+      </p>
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="btnMagic">Email me a link</button>
+        <button id="btnGoogle">Google</button>
+        <button id="btnCloseA">Close</button>
+      </div>
+    </div>
+
+    <div id="signedIn" class="hidden">
+      <div class="section-label gold">Your profile</div>
+      <p class="muted small">
+        Signed in as <span class="mono" id="userEmail"></span>.
+        Your display name is what shows on the leaderboards.
+      </p>
+      <label for="dname">Display name</label>
+      <input type="text" id="dname" maxlength="24" placeholder="2–24 characters">
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="btnSaveName">Save name</button>
+        <button id="btnSignOut">Sign out</button>
+        <button id="btnCloseB">Close</button>
+      </div>
+    </div>
+
+    <div class="status" id="status" style="margin-top:14px">Ready.</div>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="section-label blue">Games</div>
+  <div id="grid" class="grid">
+    <div class="placeholder muted">The game grid arrives in step 2.</div>
+  </div>
+</main>
+
+<script type="module" src="arcade.js"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+/* ============================================================
+   Rexy Arcade — layout only.
+   Colours, buttons, inputs, tables, tags and status come from
+   lib/rexy-theme.css. Anything defined here is structure the
+   shared theme does not already provide.
+   ============================================================ */
+
+/* ---------- header ---------- */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:16px 24px; border-bottom:1px solid var(--border-soft);
+  background:var(--surface); position:sticky; top:0; z-index:20;
+}
+.brand{display:flex; align-items:center; gap:14px; min-width:0;}
+.brand .mark{
+  width:30px; height:30px; border-radius:9px; flex:none;
+  background:linear-gradient(135deg, var(--pink), var(--gold));
+}
+.tagline{font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; margin-top:3px;}
+
+.authbar{display:flex; align-items:center; gap:10px; min-width:0;}
+.authbar .who{font-size:.8rem; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; max-width:44vw;}
+.status-dot{
+  width:8px; height:8px; border-radius:50%; flex:none;
+  background:var(--faint); transition:background .2s;
+}
+.status-dot.on{background:var(--ok);}
+.status-dot.off{background:var(--faint);}
+.status-dot.err{background:#ff7a6a;}
+
+/* ---------- sign-in / profile drawer ---------- */
+.drawer{
+  position:fixed; inset:0; z-index:30; display:grid; place-items:start center;
+  padding:80px 20px 20px; background:rgba(5,7,10,.7);
+}
+.drawerCard{width:min(440px,100%); padding:22px 24px;}
+.small{font-size:.8rem; line-height:1.5;}
+.drawerCard p{margin:0 0 4px;}
+
+/* ---------- game grid ---------- */
+.wrap{max-width:1160px; margin:0 auto; padding:8px 24px 56px;}
+.grid{
+  display:grid; gap:18px;
+  grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));
+}
+.placeholder{
+  grid-column:1/-1; padding:40px; text-align:center; font-size:.85rem;
+  border:1px dashed var(--border); border-radius:12px;
+}
+
+.gcard{
+  display:flex; flex-direction:column; overflow:hidden; text-align:left;
+  padding:0; cursor:pointer; transition:transform .14s, border-color .14s;
+  border:1px solid var(--border-soft); background:var(--surface); border-radius:12px;
+}
+.gcard:hover{transform:translateY(-3px); border-color:var(--blue-deep);}
+.gcard .thumb{
+  aspect-ratio:16/10; background:var(--inset) center/cover no-repeat;
+  border-bottom:1px solid var(--border-soft);
+}
+.gcard .body{padding:14px 16px 16px;}
+.gcard h2{font-size:.98rem; margin-bottom:5px;}
+.gcard .desc{font-size:.8rem; color:var(--muted); line-height:1.45; min-height:2.3em;}
+.gcard .foot{display:flex; align-items:center; justify-content:space-between;
+  gap:10px; margin-top:12px;}
+
+.badge{
+  font-size:.54rem; letter-spacing:.14em; text-transform:uppercase;
+  border-radius:20px; padding:3px 9px; border:1px solid var(--border);
+  color:var(--muted); white-space:nowrap;
+}
+.badge.live{color:var(--ok); border-color:rgba(70,211,154,.4);}
+.badge.soon{color:var(--faint);}
+
+.hidden{display:none !important;}
+
+@media (max-width:560px){
+  .topbar{padding:12px 16px;}
+  .wrap{padding:8px 16px 40px;}
+  .tagline{display:none;}
+  .grid{grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:14px;}
+}

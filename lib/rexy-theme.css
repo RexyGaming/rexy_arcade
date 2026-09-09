@@ -1,0 +1,67 @@
+/* ============================================================
+   Rexy theme — matches the Rexy Bridge desktop app palette.
+   Dark VP-tool look: near-black navy, Inter, pink/gold/blue accents.
+   Reuse across the leaderboard, demo, and arcade.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root{
+  --bg:#0A0D12; --surface:#131822; --surface2:#1B2230;
+  --border:#26324a; --border-soft:#1c2536; --inset:#0d1219;
+  --pink:#CE2A7C; --gold:#F6BE1A; --blue:#4F8FCB; --blue-deep:#336699;
+  --text:#EAF1F8; --muted:#8497A8; --faint:#5a6b7d; --ok:#46d39a;
+}
+
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+h1,h2,h3{font-weight:600;letter-spacing:.01em;margin:0;}
+h1{font-size:1.4rem;} h2{font-size:1rem;}
+a{color:var(--blue);}
+
+.card{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;}
+
+/* small uppercase section label with a coloured dot, Bridge-style */
+.section-label{font-size:.64rem;letter-spacing:.22em;color:var(--muted);
+  text-transform:uppercase;display:flex;align-items:center;gap:8px;margin:18px 0 8px;}
+.section-label::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pink);}
+.section-label.gold::before{background:var(--gold);}
+.section-label.blue::before{background:var(--blue);}
+
+label{display:block;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin:10px 0 5px;}
+
+input,select{width:100%;background:var(--inset);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:10px 12px;font-family:inherit;
+  font-size:.9rem;outline:none;transition:border-color .12s;}
+input:focus,select:focus{border-color:var(--blue);}
+
+button{font-family:inherit;cursor:pointer;border-radius:8px;font-size:.7rem;
+  letter-spacing:.1em;text-transform:uppercase;font-weight:600;padding:10px 16px;
+  transition:.12s;border:1px solid var(--border);background:transparent;color:var(--muted);}
+button:hover{color:var(--text);border-color:var(--blue-deep);}
+button.primary{background:var(--pink);border-color:var(--pink);color:#fff;}
+button.primary:hover{filter:brightness(1.1);border-color:var(--pink);}
+button.on{background:var(--surface2);color:var(--text);border-color:var(--blue-deep);}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--border);}
+td{padding:9px 10px;border-bottom:1px solid var(--border-soft);font-size:.86rem;}
+td.num{font-family:'JetBrains Mono',monospace;color:var(--text);}
+tr.me{background:rgba(206,42,124,.12);}
+tr.me td:first-child{box-shadow:inset 2px 0 0 var(--pink);}
+
+.tag{font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);
+  border:1px solid var(--border);border-radius:20px;padding:2px 8px;}
+
+.status{background:var(--inset);border:1px solid var(--border-soft);border-radius:8px;
+  padding:9px 12px;font-size:.72rem;color:var(--muted);min-height:20px;
+  font-family:'JetBrains Mono',monospace;letter-spacing:.02em;}
+.status.err{color:#ff7a6a;border-color:#5a2828;}
+
+.muted{color:var(--muted);} .faint{color:var(--faint);}
