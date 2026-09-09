@@ -119,3 +119,5 @@
   .boardPanel{position:static;}
   .boardScroll{max-height:none;}
 }
+
+.hr{height:1px; background:var(--border-soft); margin:16px 0 4px;}

@@ -14,7 +14,8 @@ const $ = (id) => document.getElementById(id);
 const el = {
   dot: $("authDot"), who: $("whoami"), btnAuth: $("btnAuth"),
   drawer: $("drawer"), signedOut: $("signedOut"), signedIn: $("signedIn"),
-  email: $("email"), userEmail: $("userEmail"), dname: $("dname"), status: $("status"),
+  email: $("email"), pw: $("pw"), pwNew: $("pwNew"),
+  userEmail: $("userEmail"), dname: $("dname"), status: $("status"),
   grid: $("grid"), viewHome: $("viewHome"), viewGame: $("viewGame"),
   frame: $("gameFrame"), screen: $("screen"),
   gTitle: $("gTitle"), gCredit: $("gCredit"),
@@ -44,6 +45,9 @@ const setDot = (s) => { el.dot.className = "status-dot " + s; el.dot.title = s; 
 
 function humanError(e) {
   const m = (e && (e.message || e.error_description)) || String(e);
+  if (/Invalid login credentials/i.test(m))
+    return "Wrong email or password. If you have never set a password, use the email link below.";
+  if (/Password should be|at least 8/i.test(m)) return "Password must be at least 8 characters.";
   if (/no profile/i.test(m))          return "Set a display name before submitting a score.";
   if (/not authenticated/i.test(m))   return "Sign in first — scores are tied to an account.";
   if (/rate limited/i.test(m))        return "Too many submissions in a minute. Wait a moment.";
@@ -99,6 +103,23 @@ $("btnCloseB").onclick = closeDrawer;
 el.drawer.addEventListener("click", (e) => { if (e.target === el.drawer) closeDrawer(); });
 addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
+$("btnPw").onclick = async () => {
+  const email = el.email.value.trim(), pw = el.pw.value;
+  if (!email || !pw) { say("Enter your email and password, or use the email link below.", true); return; }
+  try { say("Signing in…"); await Rexy.signInWithPassword(email, pw); el.pw.value = ""; closeDrawer(); }
+  catch (e) { say(humanError(e), true); }
+};
+el.pw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("btnPw").click(); } });
+
+$("btnSetPw").onclick = async () => {
+  try {
+    say("Saving password…");
+    await Rexy.setPassword(el.pwNew.value);
+    el.pwNew.value = "";
+    say("Password saved. You can now sign in with your email and password.");
+  } catch (e) { say(humanError(e), true); }
+};
+
 $("btnMagic").onclick = async () => {
   const email = el.email.value.trim();
   if (!email) { say("Enter your email address first.", true); return; }
@@ -117,7 +138,8 @@ $("btnSignOut").onclick = async () => {
 $("btnSaveName").onclick = async () => {
   try {
     say("Saving…");
-    const r = await Rexy.setDisplayName(el.dname.value.trim());
+    const wanted = el.dname.value.trim();
+    const r = await Rexy.setDisplayName(wanted);
     currentProfile = r; renderAuth(); say(`Name saved: ${r.display_name}`);
     if (activeGame) loadBoard();
   } catch (e) { say(humanError(e), true); }

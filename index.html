@@ -36,9 +36,19 @@
       </p>
       <label for="email">Email</label>
       <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+      <label for="pw">Password</label>
+      <input type="password" id="pw" placeholder="If you've set one" autocomplete="current-password">
       <div class="row" style="margin-top:12px">
-        <button class="primary" id="btnMagic">Email me a link</button>
+        <button class="primary" id="btnPw">Sign in</button>
         <button id="btnGoogle">Google</button>
+      </div>
+      <div class="hr"></div>
+      <p class="muted small">
+        First time, or forgotten it? A link signs you in without a password —
+        then set one from your profile so you don't need email again.
+      </p>
+      <div class="row">
+        <button id="btnMagic">Email me a link</button>
         <button id="btnCloseA">Close</button>
       </div>
     </div>
@@ -53,6 +63,17 @@
       <input type="text" id="dname" maxlength="24" placeholder="2–24 characters">
       <div class="row" style="margin-top:12px">
         <button class="primary" id="btnSaveName">Save name</button>
+      </div>
+
+      <div class="hr"></div>
+      <label for="pwNew">Set a password</label>
+      <input type="password" id="pwNew" placeholder="At least 8 characters" autocomplete="new-password">
+      <p class="muted small" style="margin-top:6px">
+        Optional, but it means you can sign straight back in on this or any other
+        device without waiting for an email.
+      </p>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="btnSetPw">Save password</button>
         <button id="btnSignOut">Sign out</button>
         <button id="btnCloseB">Close</button>
       </div>
