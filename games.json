@@ -6,7 +6,29 @@
     "credit": "Original Unreal game by Koen Ebeling",
     "thumb": "art/rexy-racer-aco.png",
     "url": "games/rexy-racer-aco/index.html",
-    "inputs": ["rexy_wheels", "mouse"],
+    "inputs": [
+      "rexy_wheels",
+      "mouse"
+    ],
+    "score": {
+      "type": "time",
+      "base": 600000,
+      "decimals": 2,
+      "note": "Submitted as base minus total milliseconds, so faster is a higher score."
+    },
+    "status": "live"
+  },
+  {
+    "id": "rexy-logo",
+    "title": "Rexy Racer — Rexy Logo",
+    "description": "Trace the Rexy maze end to end. Same rules, tighter turns, dead ends to avoid.",
+    "credit": "Maze from the Rexy Gaming logo",
+    "thumb": "art/rexy-logo.png",
+    "url": "games/rexy-logo/index.html",
+    "inputs": [
+      "rexy_wheels",
+      "mouse"
+    ],
     "score": {
       "type": "time",
       "base": 600000,
