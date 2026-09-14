@@ -168,6 +168,7 @@ const CFG = {
   moveEps: 1.5,
   baseSpeed: 2.6,
   viewSpan: 1800,
+  maxStep: 600,        // largest believable movement in one event, world units
   camLerp: 0.16,
   miniW: 230,
   boardMax: 20,
@@ -382,6 +383,10 @@ addEventListener('mousemove',e=>{
     const dx=(e.movementX||0)*CFG.baseSpeed*S.sens;
     const dy=(e.movementY||0)*CFG.baseSpeed*S.sens;
     if(!dx&&!dy) return;
+    // Drop absurd single-event jumps. Pointer lock can emit a huge delta when the
+    // underlying cursor warps at a screen edge or the lock re-engages; integrated
+    // raw, that teleports the marker into the grass. No hand moves this fast.
+    if(Math.hypot(dx,dy) > CFG.maxStep) return;
     if(!S.moved&&Math.hypot(dx,dy)>CFG.moveEps) S.moved=true;
     S.px=Math.max(B.x0,Math.min(B.x1,S.px+dx));
     S.py=Math.max(B.y0,Math.min(B.y1,S.py+dy));
@@ -574,22 +579,40 @@ function draw(){
   drawFurniture();
   drawGraves();
 
-  // finish: chequered pad
-  const fs=150*cam.s, sq=fs/3;
-  ctx.save(); ctx.translate(SX(MAZE.finish[0]),SY(MAZE.finish[1]));
-  for(let i=0;i<4;i++) for(let j=0;j<4;j++){
-    ctx.fillStyle=(i+j)%2?'#f2f4f8':'#11151b';
-    ctx.fillRect(-fs/2+j*sq*1.33, -fs/2+i*sq*1.33, sq*1.33, sq*1.33);
-  }
-  ctx.restore();
-  ctx.beginPath(); ctx.arc(SX(MAZE.start[0]),SY(MAZE.start[1]),16*cam.s,0,Math.PI*2);
-  ctx.fillStyle='rgba(79,143,203,.85)'; ctx.fill();
+  // Start and finish sit at the rounded ends of the ribbon, so fill those caps
+  // rather than stamping a square on top of them: clip a disc to the road itself
+  // and the paint takes the road's shape exactly.
+  drawCapFill(MAZE.finish, 190, 'chequer');
+  drawCapFill(MAZE.start,  170, 'start');
 
   drawPlayer(); drawLights(); drawMinimap();
 
   $('tTime').textContent=S.elapsed.toFixed(2);
   $('tPen').textContent=S.penalty.toFixed(2);
   $('tPen').style.opacity=S.penalty>0?1:.35;
+}
+
+// Paint inside (disc around p) ∩ (the road), so it fills the rounded end exactly.
+function drawCapFill(p, radius, style){
+  ctx.save();
+  worldTransform();
+  ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI*2); ctx.clip();
+  ctx.clip(KERB_PATH, 'evenodd');
+  if (style === 'chequer'){
+    const s = 96;
+    const x0 = Math.floor((p[0]-radius)/s)*s, y0 = Math.floor((p[1]-radius)/s)*s;
+    for (let y=y0; y<p[1]+radius; y+=s) for (let x=x0; x<p[0]+radius; x+=s){
+      ctx.fillStyle = ((Math.round(x/s)+Math.round(y/s)) & 1) ? '#f2f4f8' : '#11151b';
+      ctx.fillRect(x, y, s, s);
+    }
+  } else {
+    ctx.fillStyle='rgba(79,143,203,.55)';
+    ctx.fillRect(p[0]-radius, p[1]-radius, radius*2, radius*2);
+    ctx.strokeStyle='rgba(79,143,203,.9)'; ctx.lineWidth=10;
+    ctx.beginPath(); ctx.arc(p[0], p[1], radius*0.72, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.setTransform(1,0,0,1,0,0);
 }
 
 function drawFurniture(){

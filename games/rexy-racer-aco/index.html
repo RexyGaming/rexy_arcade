@@ -189,6 +189,7 @@ const CFG = {
   moveEps: 1.5,
   baseSpeed: 2.6,
   viewSpan: 1800,
+  maxStep: 600,        // largest believable movement in one event, world units
   camLerp: 0.16,
   miniW: 230,
   boardMax: 20,
@@ -409,6 +410,10 @@ addEventListener('mousemove',e=>{
     const dx=(e.movementX||0)*CFG.baseSpeed*S.sens;
     const dy=(e.movementY||0)*CFG.baseSpeed*S.sens;
     if(!dx&&!dy) return;
+    // Drop absurd single-event jumps. Pointer lock can emit a huge delta when the
+    // underlying cursor warps at a screen edge or the lock re-engages; integrated
+    // raw, that teleports the marker into the grass. No hand moves this fast.
+    if(Math.hypot(dx,dy) > CFG.maxStep) return;
     if(!S.moved&&Math.hypot(dx,dy)>CFG.moveEps) S.moved=true;
     S.px+=dx; S.py+=dy;
     S.px=Math.max(B.x0,Math.min(B.x1,S.px));
