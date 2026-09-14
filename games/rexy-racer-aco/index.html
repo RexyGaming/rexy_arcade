@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Rexy Racer — ACO</title>
+<title>Rexy Racer — ACO Logo</title>
 <style>
   :root{ --bg:#0d1015; --panel:#161b23; --ink:#e8edf5; --dim:#8b97a8;
          --accent:#ffc233; --bad:#ff3b30; --good:#31d158; }
@@ -117,7 +117,7 @@
       <img class="aco"  id="imgAco"  alt="Association of Camera Operators">
       <img class="tiny" id="imgTiny" alt="Tiny Tape">
     </div>
-    <h1>Rexy Racer &mdash; <span>ACO</span></h1>
+    <h1>Rexy Racer &mdash; <span>ACO Logo</span></h1>
     <div class="byline">created by Koen Ebeling</div>
     <p>Steady hands. Follow the track, don't touch the walls.</p>
     <ul>
@@ -872,6 +872,13 @@ function drawMinimap(){
       if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y);
     }
     ctx.stroke();
+  }
+  // street furniture, in its own colours, drawn under the checkpoint pips
+  for(const o of TRACK.obstacles){
+    ctx.beginPath();ctx.arc(mx(o.x),my(o.y),1.7*DPR,0,Math.PI*2);
+    ctx.fillStyle = o.t==='cone' ? 'rgba(232,98,42,.85)'
+                  : o.t==='barrel' ? 'rgba(201,59,59,.85)' : 'rgba(140,133,128,.85)';
+    ctx.fill();
   }
   for(let i=0;i<TRACK.checkpoints.length;i++){
     if(S.hits[i]) continue;

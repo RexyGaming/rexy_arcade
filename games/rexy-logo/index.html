@@ -711,6 +711,12 @@ function drawMinimap(){
   ctx.setTransform(s,0,0,s, ox-x0*s, oy-y0*s);
   ctx.fillStyle='#39424f'; ctx.fill(KERB_PATH,'evenodd');
   ctx.restore();
+  // street furniture, in its own colours, drawn under the checkpoint pips
+  for(const o of MAZE.obstacles){
+    ctx.beginPath(); ctx.arc(mx(o.x),my(o.y),1.9*DPR,0,Math.PI*2);
+    ctx.fillStyle = o.t==='cone' ? 'rgba(232,98,42,.9)' : 'rgba(201,59,59,.9)';
+    ctx.fill();
+  }
   for(let i=0;i<MAZE.checkpoints.length;i++){
     if(S.hits[i]) continue;
     const c=MAZE.checkpoints[i];
