@@ -16,6 +16,7 @@
   .hud .lbl{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
   .hud .val{font-size:30px; font-variant-numeric:tabular-nums; font-weight:600}
   .hud .pen .val{color:var(--bad)}
+  .hud .bon .val{color:var(--accent)}
   .hud .spacer{flex:1}
   .medal-strip{display:flex; gap:14px; font-variant-numeric:tabular-nums; font-size:12px; color:var(--dim)}
   .medal-strip b{color:var(--ink); font-weight:600}
@@ -84,6 +85,7 @@
 <div class="hud" id="hud">
   <div><div class="lbl">Time</div><div class="val" id="tTime">0.00</div></div>
   <div class="pen"><div class="lbl">Penalty</div><div class="val" id="tPen">0.00</div></div>
+  <div class="bon"><div class="lbl">Bonus</div><div class="val" id="tBon">0.00</div></div>
   <div class="spacer"></div>
   <div class="medal-strip">
     <div>GOLD <b id="tG"></b></div><div>SILVER <b id="tS"></b></div><div>BRONZE <b id="tB"></b></div>
@@ -111,12 +113,13 @@
     <div class="byline">the Rexy maze, traced end to end</div>
     <p>Steady hands. Follow the maze, don't touch the walls.</p>
     <ul>
-      <li>Take control by moving your cursor onto the marker.</li>
-      <li>The marker then follows your hand exactly &mdash; you <b>are</b> the cursor.</li>
+      <li>Take control by moving your cursor onto <b>Clappa</b>.</li>
+      <li>You are <b>Clappa</b>, and he follows your hand exactly &mdash; you <b>are</b> the cursor.</li>
       <li>Drift near a wall and the marker <b>glows red</b> as a warning.</li>
       <li>Clip a wall or a cone and the <b>penalty clock runs</b>.</li>
       <li>Go right through something and you're <b>out</b> &mdash; back to the start.</li>
       <li>The maze has <b>dead ends</b>. Take one and you only lose time.</li>
+      <li>Eat the <b>gold coins</b> for a time bonus &mdash; if you dare reach for them.</li>
       <li><b>Esc</b> pauses. <b>F</b> toggles full screen.</li>
     </ul>
     <div class="sens">
@@ -209,6 +212,47 @@ function play(k,vol){
 }
 const playDeath=()=>play('die'+Math.floor(Math.random()*5),0.9);
 
+// Clappa's own voice, synthesised: a short noise burst through a bandpass is a
+// woody percussive clack, and two of them a beat apart read as "clap-pa".
+// Built live with Web Audio, so there is no sample to ship or to licence.
+let AC=null;
+function ac(){
+  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
+  if(AC && AC.state==='suspended') AC.resume().catch(()=>{});
+  return AC;
+}
+function clack(at, freq, dur, gain){
+  const c=ac(); if(!c) return;
+  const n=Math.max(1,Math.floor(c.sampleRate*dur));
+  const buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.5);
+  const src=c.createBufferSource(); src.buffer=buf;
+  const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=freq; bp.Q.value=4.5;
+  const g=c.createGain(); g.gain.value=gain;
+  src.connect(bp); bp.connect(g); g.connect(c.destination);
+  src.start(at);
+}
+function sfxClappa(){
+  if(!soundOn) return;
+  const c=ac(); if(!c) return;
+  const t=c.currentTime;
+  clack(t,       2150, 0.055, 0.20);   // clap
+  clack(t+0.085, 1450, 0.075, 0.15);   // pa
+}
+function sfxCoin(){
+  if(!soundOn) return;
+  const c=ac(); if(!c) return;
+  const t=c.currentTime;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type='square';
+  o.frequency.setValueAtTime(900,t);
+  o.frequency.exponentialRampToValueAtTime(1800,t+0.07);
+  g.gain.setValueAtTime(0.13,t);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+0.17);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t+0.19);
+}
+
 // ---------- the maze: one closed kerb polygon ----------
 // The Rexy logo's maze is a single continuous ribbon. Its kerb outline is one
 // closed polygon, so "how far outside the road am I" is an exact calculation
@@ -294,7 +338,8 @@ const S={
   hits:[], flash:0, warnGlow:0,
   deaths:0, touches:0, sens:1, locked:false,
   pulse:0, lockFailed:false, started:false, lightStage:-1,
-  heading:0, chompDist:0, lastMoveAt:0,
+  heading:0, chompDist:0, lastMoveAt:0, lastChompCycle:-1,
+  coinsGot:[], bonus:0,
   lightT:99, dieT:0, deathAt:null, graves:[]
 };
 const centreCam=()=>{ cam.x=S.px; cam.y=S.py; };
@@ -305,7 +350,9 @@ function newRun(){
   S.hits=MAZE.checkpoints.map(()=>false);
   S.flash=0; S.warnGlow=0; S.deaths=0; S.touches=0; S.started=false;
   S.lightT=99; S.lightStage=-1; S.dieT=0; S.deathAt=null; S.graves=[];
-  S.heading=0; S.chompDist=0; S.lastMoveAt=0;
+  S.heading=0; S.chompDist=0; S.lastMoveAt=0; S.lastChompCycle=-1;
+  S.coinsGot=MAZE.coins.map(()=>false); S.bonus=0; S.lastChompCycle=-1;
+  S.coinsGot=MAZE.coins.map(()=>false); S.bonus=0;
   centreCam(); arm();
 }
 function arm(){
@@ -417,7 +464,7 @@ addEventListener('keydown',e=>{
   if(e.key==='Escape'&&document.exitPointerLock) document.exitPointerLock();
   if((e.key==='f'||e.key==='F')&&document.activeElement!==$('pname')) toggleFull();
 });
-function begin(){ $('ovStart').classList.add('hidden'); $('ovEnd').classList.add('hidden'); newRun(); }
+function begin(){ ac(); $('ovStart').classList.add('hidden'); $('ovEnd').classList.add('hidden'); newRun(); }
 $('btnStart').onclick=begin; $('btnAgain').onclick=begin; $('btnSkip').onclick=begin; $('btnRestart').onclick=begin;
 $('btnResume').onclick=tryLock;
 
@@ -477,15 +524,16 @@ function finish(){
   document.body.classList.remove('hide-cursor');
   $('prompt').classList.add('hidden');
   if(document.exitPointerLock) document.exitPointerLock();
-  const total=S.elapsed+S.penalty, m=medalFor(total);
+  const total=Math.max(0, S.elapsed+S.penalty-S.bonus), m=medalFor(total);
   lastResult={total:total,stamp:Date.now()};
   pendingEntry={name:'',total:total,pending:true};
   const mi=$('eMedalImg');
   if(m[2]&&ART[m[2]]){ mi.src=ART[m[2]]; mi.classList.remove('hidden'); } else mi.classList.add('hidden');
   $('eMedal').textContent=m[0]; $('eMedal').style.color=m[1];
   $('eTotal').textContent=total.toFixed(2)+'s';
-  $('eBrk').textContent='run '+S.elapsed.toFixed(2)+'s  +  penalty '+S.penalty.toFixed(2)+
-    's   ·   '+S.touches+' contact'+(S.touches===1?'':'s')+'  ·  '+S.deaths+' death'+(S.deaths===1?'':'s');
+  $('eBrk').innerHTML='run '+S.elapsed.toFixed(2)+'s  +  penalty '+S.penalty.toFixed(2)+
+    's  &minus;  bonus '+S.bonus.toFixed(2)+'s   ·   '+S.touches+' contact'+(S.touches===1?'':'s')+
+    '  ·  '+S.coinsGot.filter(Boolean).length+'/'+MAZE.coins.length+' coins  ·  '+S.deaths+' death'+(S.deaths===1?'':'s');
   play(m[2]==='gold'?'gold':m[2]?'medal':'nomedal',0.8);
   $('entryBlock').classList.remove('hidden');
   $('againRow').classList.add('hidden');
@@ -543,6 +591,17 @@ function frame(now){
     S.warnGlow=S.warning?Math.min(1,S.warnGlow+dt*6):Math.max(0,S.warnGlow-dt*4);
     S.wasPenalising=S.penalising;
 
+    // coins: the grab is generous, the risk is in reaching for them
+    for(let i=0;i<MAZE.coins.length;i++){
+      if(S.coinsGot[i]) continue;
+      const cn=MAZE.coins[i], cdx=S.px-cn.x, cdy=S.py-cn.y;
+      const rr=MAZE.coinR+CFG.markerR*0.5;
+      if(cdx*cdx+cdy*cdy < rr*rr){ S.coinsGot[i]=true; S.bonus+=MAZE.coinBonus; sfxCoin(); }
+    }
+    // one "clap-pa" per chomp cycle, only while actually moving
+    const cyc=Math.floor(S.chompDist/CFG.chompPeriod);
+    if(cyc!==S.lastChompCycle){ if(S.lastChompCycle>=0 && S.moved) sfxClappa(); S.lastChompCycle=cyc; }
+
     let all=true;
     for(let i=0;i<MAZE.checkpoints.length;i++){
       if(!S.hits[i]){
@@ -599,11 +658,14 @@ function draw(){
   drawCapFill(MAZE.finish, 190, 'chequer');
   drawCapFill(MAZE.start,  170, 'start');
 
+  drawCoins();
   drawPlayer(); drawLights(); drawMinimap();
 
   $('tTime').textContent=S.elapsed.toFixed(2);
   $('tPen').textContent=S.penalty.toFixed(2);
   $('tPen').style.opacity=S.penalty>0?1:.35;
+  $('tBon').textContent='-'+S.bonus.toFixed(2);
+  $('tBon').style.opacity=S.bonus>0?1:.35;
 }
 
 // Paint inside (disc around p) ∩ (the road), so it fills the rounded end exactly.
@@ -667,6 +729,21 @@ function drawGraves(){
     ctx.restore();
   }
 }
+function drawCoins(){
+  for(let i=0;i<MAZE.coins.length;i++){
+    if(S.coinsGot[i]) continue;
+    const c=MAZE.coins[i], x=SX(c.x), y=SY(c.y);
+    const puls=1+0.08*Math.sin(S.pulse*Math.PI*2+i);
+    const r=MAZE.coinR*cam.s*0.78*puls;
+    ctx.beginPath(); ctx.arc(x,y,r*1.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(246,190,26,.16)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle='#f6be1a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r*0.62,0,Math.PI*2);
+    ctx.strokeStyle='rgba(120,84,0,.55)'; ctx.lineWidth=Math.max(1,r*0.16); ctx.stroke();
+  }
+}
+
 function drawPlayer(){
   if(S.phase==='menu') return;
   const x=SX(S.px), y=SY(S.py);
@@ -691,9 +768,19 @@ function drawPlayer(){
       fi=SEQ[Math.floor(t*SEQ.length) % SEQ.length];
     }
     fi=Math.min(fi, n-1);
+    // Mirror rather than rotate past vertical, so the eye stays on top when he
+    // travels right-to-left. Composed as rotate(a) then scaleX(-1): the sprite's
+    // native +X facing becomes -X, and a = heading - pi puts the mouth back on
+    // the heading while keeping |a| under 90 degrees.
+    let a=S.heading;
+    while(a >  Math.PI) a -= Math.PI*2;
+    while(a < -Math.PI) a += Math.PI*2;
+    const flip = Math.abs(a) > Math.PI/2;
+    if(flip) a = a > 0 ? a - Math.PI : a + Math.PI;
     ctx.save();
     ctx.translate(x,y);
-    ctx.rotate(S.heading);
+    ctx.rotate(a);
+    if(flip) ctx.scale(-1,1);
     ctx.drawImage(im, fi*F, 0, F, F, -d/2, -d/2, d, d);
     ctx.restore();
   } else { ctx.beginPath();ctx.arc(x,y,d*.32,0,Math.PI*2);ctx.fillStyle='#ffc233';ctx.fill(); }
