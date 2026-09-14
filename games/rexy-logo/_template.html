@@ -168,7 +168,8 @@ const CFG = {
   moveEps: 1.5,
   baseSpeed: 2.6,
   viewSpan: 1800,
-  maxStep: 600,        // largest believable movement in one event, world units
+  maxStep: 600,
+  chompPeriod: 210,    // world units travelled per full chomp cycle        // largest believable movement in one event, world units
   camLerp: 0.16,
   miniW: 230,
   boardMax: 20,
@@ -293,6 +294,7 @@ const S={
   hits:[], flash:0, warnGlow:0,
   deaths:0, touches:0, sens:1, locked:false,
   pulse:0, lockFailed:false, started:false, lightStage:-1,
+  heading:0, chompDist:0, lastMoveAt:0,
   lightT:99, dieT:0, deathAt:null, graves:[]
 };
 const centreCam=()=>{ cam.x=S.px; cam.y=S.py; };
@@ -303,6 +305,7 @@ function newRun(){
   S.hits=MAZE.checkpoints.map(()=>false);
   S.flash=0; S.warnGlow=0; S.deaths=0; S.touches=0; S.started=false;
   S.lightT=99; S.lightStage=-1; S.dieT=0; S.deathAt=null; S.graves=[];
+  S.heading=0; S.chompDist=0; S.lastMoveAt=0;
   centreCam(); arm();
 }
 function arm(){
@@ -336,7 +339,7 @@ function finishDeath(){
   S.deaths++;
   S.elapsed=0; S.penalty=0; S.moved=false; S.touches=0;
   S.penalising=false; S.wasPenalising=false; S.warning=false;
-  S.flash=0; S.warnGlow=0; centreCam();
+  S.flash=0; S.warnGlow=0; S.heading=0; S.chompDist=0; S.lastMoveAt=0; centreCam();
   S.phase='lights'; S.lightT=0; S.lightStage=-1;
 }
 
@@ -386,7 +389,18 @@ addEventListener('mousemove',e=>{
     // Drop absurd single-event jumps. Pointer lock can emit a huge delta when the
     // underlying cursor warps at a screen edge or the lock re-engages; integrated
     // raw, that teleports the marker into the grass. No hand moves this fast.
-    if(Math.hypot(dx,dy) > CFG.maxStep) return;
+    const mag=Math.hypot(dx,dy);
+    if(mag > CFG.maxStep) return;
+    // Face the way we are travelling, and chomp by distance covered (Pac-Man
+    // style) rather than on a clock, so the mouth stills when the hand stills.
+    S.chompDist += mag;
+    S.lastMoveAt = performance.now();
+    if(mag > 0.8){
+      let d2 = Math.atan2(dy,dx) - S.heading;
+      while(d2 >  Math.PI) d2 -= Math.PI*2;
+      while(d2 < -Math.PI) d2 += Math.PI*2;
+      S.heading += d2 * 0.35;
+    }
     if(!S.moved&&Math.hypot(dx,dy)>CFG.moveEps) S.moved=true;
     S.px=Math.max(B.x0,Math.min(B.x1,S.px+dx));
     S.py=Math.max(B.y0,Math.min(B.y1,S.py+dy));
@@ -665,9 +679,24 @@ function drawPlayer(){
   ctx.beginPath(); ctx.arc(x,y,d*(glow>.02?.8*(1+hot*.28):.72),0,Math.PI*2);
   ctx.fillStyle=glow>.02?'rgba(255,59,48,'+(.14+glow*.5)+')':'rgba(255,194,51,.16)';
   ctx.fill();
-  const im=IMG.skin;
-  if(im&&im.complete&&im.naturalWidth) ctx.drawImage(im,x-d/2,y-d/2,d,d);
-  else { ctx.beginPath();ctx.arc(x,y,d*.32,0,Math.PI*2);ctx.fillStyle='#ffc233';ctx.fill(); }
+  const im=IMG.chomp;
+  if(im&&im.complete&&im.naturalWidth){
+    const F=im.naturalHeight;                        // square frames laid out in a row
+    const n=Math.max(1, Math.round(im.naturalWidth/F));
+    const SEQ=[0,1,2,3,2,1];
+    const moving=(performance.now()-S.lastMoveAt) < 130;
+    let fi=0;
+    if(moving){
+      const t=(S.chompDist % CFG.chompPeriod)/CFG.chompPeriod;
+      fi=SEQ[Math.floor(t*SEQ.length) % SEQ.length];
+    }
+    fi=Math.min(fi, n-1);
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(S.heading);
+    ctx.drawImage(im, fi*F, 0, F, F, -d/2, -d/2, d, d);
+    ctx.restore();
+  } else { ctx.beginPath();ctx.arc(x,y,d*.32,0,Math.PI*2);ctx.fillStyle='#ffc233';ctx.fill(); }
   if(hot>.02){
     ctx.beginPath(); ctx.arc(x,y,d*.52,0,Math.PI*2);
     ctx.strokeStyle='rgba(255,59,48,'+(.55+hot*.45)+')'; ctx.lineWidth=Math.max(2,d*.06); ctx.stroke();
