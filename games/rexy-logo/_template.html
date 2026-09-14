@@ -212,7 +212,12 @@ function play(k,vol){
   if(!soundOn||!AUD[k]) return;
   try{ const a=AUD[k].cloneNode(); a.volume=(vol==null?1:vol); const p=a.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){}
 }
-const playDeath=()=>play('endboard',0.95);
+function playDeath(){
+  // the slate cracks first - immediate feedback for the crash - then Clappa
+  // calls it: "end board", the way a tail slate actually goes.
+  play('die'+Math.floor(Math.random()*5), 1.0);
+  setTimeout(()=>play('endboard', 0.95), 190);
+}
 
 // Clappa's own voice, synthesised: a short noise burst through a bandpass is a
 // woody percussive clack, and two of them a beat apart read as "clap-pa".
@@ -601,11 +606,11 @@ function frame(now){
       if(cdx*cdx+cdy*cdy < rr*rr){ S.coinsGot[i]=true; S.bonus+=MAZE.coinBonus; sfxCoin(); }
     }
     // one "clap-pa" per chomp cycle, only while actually moving
-    // "clapper" runs 0.42s and at pace the mouth cycles faster than that, so
-    // gate the voice on its own length. The mouth keeps chomping regardless.
+    // Synthesised clack per chomp: short enough to keep up with the mouth at
+    // full pace, where a spoken word would overlap itself and grate.
     const cyc=Math.floor(S.chompDist/CFG.chompPeriod);
     if(cyc!==S.lastChompCycle){
-      if(S.lastChompCycle>=0 && S.moved && now-lastTick>480){ lastTick=now; play('clapper',0.85); }
+      if(S.lastChompCycle>=0 && S.moved) sfxClappa();
       S.lastChompCycle=cyc;
     }
 
