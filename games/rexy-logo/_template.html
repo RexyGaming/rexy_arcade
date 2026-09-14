@@ -17,6 +17,7 @@
   .hud .val{font-size:30px; font-variant-numeric:tabular-nums; font-weight:600}
   .hud .pen .val{color:var(--bad)}
   .hud .bon .val{color:var(--accent)}
+  .hud .take .val{color:var(--dim)}
   .hud .spacer{flex:1}
   .medal-strip{display:flex; gap:14px; font-variant-numeric:tabular-nums; font-size:12px; color:var(--dim)}
   .medal-strip b{color:var(--ink); font-weight:600}
@@ -86,6 +87,7 @@
   <div><div class="lbl">Time</div><div class="val" id="tTime">0.00</div></div>
   <div class="pen"><div class="lbl">Penalty</div><div class="val" id="tPen">0.00</div></div>
   <div class="bon"><div class="lbl">Bonus</div><div class="val" id="tBon">0.00</div></div>
+  <div class="take"><div class="lbl">Take</div><div class="val" id="tTake">1</div></div>
   <div class="spacer"></div>
   <div class="medal-strip">
     <div>GOLD <b id="tG"></b></div><div>SILVER <b id="tS"></b></div><div>BRONZE <b id="tB"></b></div>
@@ -178,7 +180,7 @@ const CFG = {
   boardMax: 20,
   tileWorld: 620,
   grassTileWorld: 900,
-  lightStep: 0.7, lightGo: 1.4, lightEnd: 2.0,
+  lightStep: 1.0, lightGo: 2.0, lightEnd: 2.8,   // wide enough for the spoken callouts
   deathTime: 1.0
 };
 const PAL = {
@@ -210,7 +212,7 @@ function play(k,vol){
   if(!soundOn||!AUD[k]) return;
   try{ const a=AUD[k].cloneNode(); a.volume=(vol==null?1:vol); const p=a.play(); if(p&&p.catch) p.catch(()=>{}); }catch(e){}
 }
-const playDeath=()=>play('die'+Math.floor(Math.random()*5),0.9);
+const playDeath=()=>play('endboard',0.95);
 
 // Clappa's own voice, synthesised: a short noise burst through a bandpass is a
 // woody percussive clack, and two of them a beat apart read as "clap-pa".
@@ -570,7 +572,7 @@ function frame(now){
   if(S.lightT<CFG.lightEnd){
     S.lightT+=dt;
     const stage=S.lightT<CFG.lightStep?0:S.lightT<CFG.lightGo?1:2;
-    if(stage!==S.lightStage){ S.lightStage=stage; play(stage===2?'go':'beep',stage===2?0.85:0.6); }
+    if(stage!==S.lightStage){ S.lightStage=stage; play(['rollcamera','cameraspeed','action'][stage], 0.95); }
   }
   if(S.phase==='lights'&&S.lightT>=CFG.lightGo) S.phase='running';
   if(S.phase==='dying'){ S.dieT+=dt; if(S.dieT>=CFG.deathTime) finishDeath(); }
@@ -599,8 +601,13 @@ function frame(now){
       if(cdx*cdx+cdy*cdy < rr*rr){ S.coinsGot[i]=true; S.bonus+=MAZE.coinBonus; sfxCoin(); }
     }
     // one "clap-pa" per chomp cycle, only while actually moving
+    // "clapper" runs 0.42s and at pace the mouth cycles faster than that, so
+    // gate the voice on its own length. The mouth keeps chomping regardless.
     const cyc=Math.floor(S.chompDist/CFG.chompPeriod);
-    if(cyc!==S.lastChompCycle){ if(S.lastChompCycle>=0 && S.moved) sfxClappa(); S.lastChompCycle=cyc; }
+    if(cyc!==S.lastChompCycle){
+      if(S.lastChompCycle>=0 && S.moved && now-lastTick>480){ lastTick=now; play('clapper',0.85); }
+      S.lastChompCycle=cyc;
+    }
 
     let all=true;
     for(let i=0;i<MAZE.checkpoints.length;i++){
@@ -666,6 +673,7 @@ function draw(){
   $('tPen').style.opacity=S.penalty>0?1:.35;
   $('tBon').textContent='-'+S.bonus.toFixed(2);
   $('tBon').style.opacity=S.bonus>0?1:.35;
+  $('tTake').textContent=(S.deaths+1);
 }
 
 // Paint inside (disc around p) ∩ (the road), so it fills the rounded end exactly.
