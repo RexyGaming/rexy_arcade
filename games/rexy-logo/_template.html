@@ -667,7 +667,7 @@ function draw(){
   // Start and finish sit at the rounded ends of the ribbon, so fill those caps
   // rather than stamping a square on top of them: clip a disc to the road itself
   // and the paint takes the road's shape exactly.
-  drawCapFill(MAZE.finish, 190, 'chequer');
+  drawFinishLine();
   drawCapFill(MAZE.start,  170, 'start');
 
   drawCoins();
@@ -679,6 +679,28 @@ function draw(){
   $('tBon').textContent='-'+S.bonus.toFixed(2);
   $('tBon').style.opacity=S.bonus>0?1:.35;
   $('tTake').textContent=(S.deaths+1);
+}
+
+// A straight chequered strip across the road, the same 2 x 6 pattern as the
+// ACO Logo finish: 50-unit squares, 100 along the direction of travel and
+// wide enough to meet both kerbs. Aligned to the route's final heading and
+// clipped to the road so it never overhangs onto the verge.
+function drawFinishLine(){
+  const r=MAZE.route, n=r.length;
+  const a=r[Math.max(0,n-3)], b=r[n-1];
+  const ang=Math.atan2(b[1]-a[1], b[0]-a[0]);
+  const sq=50, rows=8;                      // 8 x 50 = 400 across, clipped to the kerbs
+  ctx.save();
+  worldTransform();
+  ctx.clip(KERB_PATH,'evenodd');
+  ctx.translate(MAZE.finish[0], MAZE.finish[1]);
+  ctx.rotate(ang);
+  for(let i=0;i<rows;i++) for(let j=0;j<2;j++){
+    ctx.fillStyle=(i+j)%2?'#f2f4f8':'#11151b';
+    ctx.fillRect(-sq+j*sq, -rows*sq/2+i*sq, sq, sq);
+  }
+  ctx.restore();
+  ctx.setTransform(1,0,0,1,0,0);
 }
 
 // Paint inside (disc around p) ∩ (the road), so it fills the rounded end exactly.
