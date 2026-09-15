@@ -34,6 +34,36 @@ games/<id>/         each game, same origin so it inherits the signed-in session
 lib/                canonical shared client code (see above)
 ```
 
+## Rexy Racer levels
+
+Every Rexy Racer level is played by **one engine**, `games/racer/index.html`,
+which loads a level file:
+
+```
+games/racer/index.html        the engine; ?level=<id> picks the level
+games/racer/core.js           road geometry + collision, shared with the editor
+games/racer/art.json          sprites, textures, medals (shared by all levels)
+games/racer/snd.json          sounds (shared by all levels)
+games/racer/levels/<id>.json  one file per level
+editor/                       the level editor (not linked from the arcade)
+tools/add_level.py            adds an exported level to the arcade
+```
+
+`editor/index.html` draws roads (curves, straight lines or track pieces, over an
+optional traced image or PDF), places furniture, coins and checkpoints, checks
+the level with the game's own collision rules (completable? racing line? how
+much skill does each coin take?), test-plays it, and exports one `<id>.json`.
+To publish an exported level:
+
+```
+python tools/add_level.py path/to/<id>.json
+```
+
+That writes the level file, the card thumbnail and the `games.json` entry. Scores
+are keyed by the level id, so never rename the id of a level that has scores.
+`games/rexy-racer-aco/` and `games/rexy-logo/` are the old one-page builds, kept
+for reference; the arcade no longer points at them.
+
 ## Running it locally
 
 ES modules need http, not `file://`:

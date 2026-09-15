@@ -129,5 +129,9 @@ standalone build never requests `../../lib/` and never 404s. Standalone, the gam
 keeps its own local leaderboard; in the arcade, the local name box is swapped for
 a control picker and a submit button.
 
-Its canonical source is the template in the Rexy Racer project; the copy under
-`games/rexy-racer-aco/` is a build output. Rebuild there, then copy across.
+In the arcade, every Rexy Racer level now runs on the shared engine at
+`games/racer/index.html?level=<id>`, with the bridge loaded the same way (and
+never in the editor's test play, `?level=draft`). New levels come from
+`editor/` and are added with `tools/add_level.py` — see the README. The old
+one-page builds under `games/rexy-racer-aco/` and `games/rexy-logo/` are kept
+for reference only.

@@ -1,0 +1,1139 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rexy Racer</title>
+<style>
+  :root{ --bg:#0d1015; --panel:#161b23; --ink:#e8edf5; --dim:#8b97a8;
+         --accent:#ffc233; --bad:#ff3b30; --good:#31d158; }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; background:var(--bg); color:var(--ink);
+    font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden; user-select:none}
+  body.hide-cursor{cursor:none}
+  canvas{display:block; position:absolute; inset:0}
+  .hud{position:absolute; top:0; left:0; right:0; padding:16px 20px;
+       display:flex; gap:28px; align-items:baseline; pointer-events:none;
+       text-shadow:0 2px 10px rgba(0,0,0,.95)}
+  .hud .lbl{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
+  .hud .val{font-size:30px; font-variant-numeric:tabular-nums; font-weight:600}
+  .hud .pen .val{color:var(--bad)}
+  .hud .bon .val{color:var(--accent)}
+  .hud .take .val{color:var(--dim)}
+  .hud .spacer{flex:1}
+  .medal-strip{display:flex; gap:14px; font-variant-numeric:tabular-nums; font-size:12px; color:var(--dim)}
+  .medal-strip b{color:var(--ink); font-weight:600}
+  .draftTag{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#241a00;
+    background:var(--accent); border-radius:6px; padding:3px 8px; align-self:center}
+
+  .prompt{position:absolute; left:50%; bottom:9%; transform:translateX(-50%);
+    background:rgba(13,16,21,.92); border:1px solid #2b3441; border-radius:12px;
+    padding:14px 22px; text-align:center; z-index:4; pointer-events:none;
+    box-shadow:0 12px 40px rgba(0,0,0,.6)}
+  .prompt.interactive{pointer-events:auto}
+  .prompt b{color:var(--accent)}
+  .prompt .sub{font-size:11.5px; color:var(--dim); margin-top:5px}
+  .prompt .row{margin-top:12px}
+
+  .overlay{position:absolute; inset:0; display:grid; place-items:center;
+           background:rgba(8,10,14,.88); cursor:default; z-index:5}
+  .card{background:var(--panel); border:1px solid #232b36; border-radius:14px;
+        padding:26px 32px; width:min(760px,94vw); text-align:center;
+        box-shadow:0 24px 70px rgba(0,0,0,.6); max-height:95vh; overflow:auto}
+  .brand{display:flex; align-items:center; justify-content:space-evenly; gap:10px; margin-bottom:16px}
+  .brand img{display:block; width:auto}
+  .brand .rexy{height:56px}
+  .brand .aco{height:46px}
+  .brand .tiny{height:46px}
+  .card h1{font-size:23px; letter-spacing:-.01em; margin-bottom:3px}
+  .card h1 span{color:var(--accent)}
+  .byline{font-size:12px; color:var(--dim); margin-bottom:12px; font-style:italic}
+  .card p{color:var(--dim); margin-bottom:14px; font-size:13px}
+  .card ul{text-align:left; color:var(--dim); font-size:13px; margin:0 auto 16px; max-width:430px}
+  .card li{margin:5px 0; list-style:none; padding-left:18px; position:relative}
+  .card li:before{content:"\203A"; position:absolute; left:4px; color:var(--accent)}
+  .btn{background:var(--accent); color:#241a00; border:0; border-radius:9px; padding:11px 22px;
+       font-size:13.5px; font-weight:700; cursor:pointer}
+  .btn[disabled]{opacity:.45; cursor:default}
+  .btn.ghost{background:transparent; color:var(--dim); border:1px solid #2b3441}
+  .btn:hover{filter:brightness(1.08)}
+  .row{display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap}
+  .sens{margin:14px auto; max-width:340px; text-align:left}
+  .sens label{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim);
+              display:flex; justify-content:space-between; margin-bottom:7px}
+  .sens input[type=range]{width:100%}
+  .sndrow{display:inline-flex; align-items:center; gap:8px; color:var(--dim);
+          font-size:12px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:14px; cursor:pointer}
+  .medalImg{width:96px; height:auto; margin-bottom:2px}
+  .result{font-size:46px; font-weight:700; font-variant-numeric:tabular-nums; margin:0 0 2px}
+  .medal{font-size:13px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; margin-bottom:6px}
+  .brk{font-size:12px; color:var(--dim); margin-bottom:14px; font-variant-numeric:tabular-nums}
+  input[type=text]{background:#0e131a; border:1px solid #2b3441; color:var(--ink);
+    border-radius:9px; padding:11px 14px; font-size:15px; width:220px; text-align:center; font-family:inherit}
+  input[type=text]:focus{outline:0; border-color:var(--accent)}
+  .boardWrap{max-height:44vh; overflow:auto; margin-top:16px; text-align:left;
+             border-top:1px solid #232b36; padding-top:4px}
+  .boardCols{display:flex; gap:22px; align-items:flex-start}
+  .boardCols .col{flex:1 1 0; min-width:0}
+  @media (max-width:640px){ .boardCols{flex-direction:column; gap:4px} }
+  table{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums}
+  th{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+     text-align:left; padding:6px 8px; border-bottom:1px solid #232b36; font-weight:600;
+     position:sticky; top:0; background:var(--panel)}
+  td{padding:6px 8px; font-size:13px; border-bottom:1px solid #1a212b}
+  td.pos{color:var(--dim); width:34px}
+  td.tm{text-align:right; font-weight:600}
+  tr.me td{color:var(--accent)}
+  tr.pending td{color:var(--accent); background:rgba(255,194,51,.07)}
+  .blank{display:inline-block; min-width:110px; border-bottom:1px dashed #4a5666; opacity:.7}
+  .note{font-size:11px; color:var(--dim); margin-top:12px}
+  select{background:#0e131a; border:1px solid #2b3441; color:var(--ink);
+    border-radius:9px; padding:10px 12px; font-size:14px; font-family:inherit; width:220px}
+  select:focus{outline:0; border-color:var(--accent)}
+  .arcLbl{font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--dim); margin-bottom:7px}
+  .hidden{display:none !important}
+</style>
+
+<canvas id="c"></canvas>
+
+<div class="hud" id="hud">
+  <div><div class="lbl">Time</div><div class="val" id="tTime">0.00</div></div>
+  <div class="pen"><div class="lbl">Penalty</div><div class="val" id="tPen">0.00</div></div>
+  <div class="bon"><div class="lbl">Bonus</div><div class="val" id="tBon">0.00</div></div>
+  <div class="take"><div class="lbl">Take</div><div class="val" id="tTake">1</div></div>
+  <div class="draftTag hidden" id="draftTag">Test play</div>
+  <div class="spacer"></div>
+  <div class="medal-strip">
+    <div>GOLD <b id="tG"></b></div><div>SILVER <b id="tS"></b></div><div>BRONZE <b id="tB"></b></div>
+  </div>
+</div>
+
+<div class="prompt hidden" id="prompt">
+  <div id="promptMain">Move your cursor onto the <b>marker</b> to take control</div>
+  <div class="sub" id="promptSub">Press <b>Esc</b> at any time to release the mouse</div>
+  <div class="row hidden" id="pauseRow">
+    <button class="btn" id="btnResume">Resume</button>
+    <button class="btn ghost" id="btnRestart">Restart level</button>
+    <button class="btn ghost" id="btnFull2">Full screen</button>
+    <button class="btn ghost" id="btnMenu">Main menu</button>
+  </div>
+</div>
+
+<div class="overlay" id="ovStart">
+  <div class="card">
+    <div class="brand" id="brand"></div>
+    <h1>Rexy Racer &mdash; <span id="lvTitle">loading&hellip;</span></h1>
+    <div class="byline" id="lvByline"></div>
+    <p id="lvBlurb"></p>
+    <ul id="rules">
+      <li>Take control by moving your cursor onto <b>Clappa</b>.</li>
+      <li>You are <b>Clappa</b>, and he follows your hand exactly &mdash; you <b>are</b> the cursor.</li>
+      <li>Drift near an edge and the marker <b>glows red</b> as a warning.</li>
+      <li>Clip the border or a cone and the <b>penalty clock runs</b>.</li>
+      <li>Go right through something, or stray well off the track, and you're <b>out</b>
+          &mdash; a gravestone marks the spot and the run starts over.</li>
+      <li id="coinRule">Eat the <b>gold coins</b> for a time bonus &mdash; if you dare reach for them.</li>
+      <li><b>Esc</b> pauses &mdash; resume, restart or quit from there.</li>
+      <li><b>F</b> toggles full screen at any time.</li>
+    </ul>
+    <div class="sens">
+      <label>Wheel sensitivity <span id="sensVal">1.00</span></label>
+      <input type="range" id="sens" min="0.2" max="3" step="0.05" value="1">
+    </div>
+    <label class="sndrow"><input type="checkbox" id="sndTog" checked> Sound</label>
+    <div class="row" style="margin-bottom:4px">
+      <button class="btn" id="btnStart" disabled>Start</button>
+      <button class="btn ghost" id="btnFull">Full screen</button>
+    </div>
+    <div class="note hidden" id="loadNote"></div>
+    <div id="startBoard"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="ovEnd">
+  <div class="card">
+    <img class="medalImg hidden" id="eMedalImg" alt="">
+    <div class="medal" id="eMedal"></div>
+    <div class="result" id="eTotal"></div>
+    <div class="brk" id="eBrk"></div>
+    <div id="arcadeBlock" class="hidden">
+      <div class="arcLbl">Played with</div>
+      <div class="row"><select id="ctlPick"></select></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnGlobal">Submit to global board</button>
+        <button class="btn ghost" id="btnSkipArc">Skip &mdash; run again</button>
+      </div>
+      <div class="note" id="arcNote"></div>
+    </div>
+
+    <div id="entryBlock">
+      <div class="row"><input type="text" id="pname" maxlength="14" placeholder="Your name" autocomplete="off" spellcheck="false"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="btnSave">Save to leaderboard</button>
+        <button class="btn ghost" id="btnSkip">Skip &mdash; run again</button>
+      </div>
+    </div>
+    <div class="row hidden" id="againRow" style="margin-top:14px">
+      <button class="btn" id="btnAgain">Run again</button>
+    </div>
+    <div class="boardWrap"><div id="endBoard"></div></div>
+    <div class="note hidden" id="storeNote">Scores are kept for this session only &mdash; this browser is blocking local storage.</div>
+  </div>
+</div>
+
+<script src="core.js"></script>
+<script>
+// ============================================================
+// Rexy Racer engine. One page plays every level:
+//   index.html?level=<id>   loads levels/<id>.json
+//   index.html?level=draft  plays the level editor's current draft (never posts scores)
+// Art and sound are shared by all levels (art.json, snd.json).
+// ============================================================
+const QS = new URLSearchParams(location.search);
+const LEVEL_ID = (QS.get('level') || 'rexy-racer-aco').replace(/[^a-z0-9_-]/gi, '');
+const IS_DRAFT = LEVEL_ID === 'draft';
+const DRAFT_KEY = 'rexyRacerDraft';
+const IN_ARCADE = !IS_DRAFT && (function(){ try { return window.parent !== window; } catch(e){ return false; } })();
+const SCORE_BASE = 600000;   // must match games.json -> score.base
+
+let TRACK=null, ART={}, SND={}, W=null, GAME_ID='';
+
+const CFG = {
+  edgePad: 50,
+  markerR: RacerCore.RULES.markerR,
+  warnBand: RacerCore.RULES.warnBand,
+  obsKillDepth: RacerCore.RULES.obsKillDepth,
+  finishR: RacerCore.RULES.finishR,
+  cpR: RacerCore.RULES.cpR,
+  moveEps: 1.5,
+  baseSpeed: 2.6,
+  viewSpan: 1800,
+  maxStep: 600,        // largest believable movement in one event, world units
+  chompPeriod: 210,    // world units travelled per full chomp cycle
+  camLerp: 0.16,
+  miniW: 230,
+  boardMax: 20,
+  tileWorld: 620,
+  grassTileWorld: 900,
+  lightStep: 1.0,      // one spoken callout per stage
+  lightGo: 2.0,        // "action" + control handed over
+  lightEnd: 2.8,       // light fully faded
+  deathTime: 1.0       // dissolve before the reset
+};
+
+const PAL = {
+  cone:    {base:'#28231d', body:'#a95c3c', band:'#bdb7b1', tip:'#8d482a'},
+  barrel:  {rim:'#3a2a1e', body:'#553522', hoop:'#b5713a', top:'#704931'},
+  barrier: {body:'#716c66', edge:'#302d2b', light:'#8c8580'},
+  grave:   {stone:'#6b7481', shade:'#4a525d', mark:'#2a2f38'}
+};
+
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+let storageOK=true;
+const store={
+  get(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ storageOK=false; return d; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ storageOK=false; } }
+};
+
+const IMG={};
+let asphaltPat=null, grassPat=null;
+const AUD={};
+let soundOn=(store.get('rexySound','1')!=='0');
+let lastTick=0;
+function play(k,vol){
+  if(!soundOn||!AUD[k]) return;
+  try{ const a=AUD[k].cloneNode(); a.volume=(vol==null?1:vol); const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+}
+function playDeath(){
+  // the slate cracks first - immediate feedback for the crash - then Clappa
+  // calls it: "end board", the way a tail slate actually goes.
+  play('die'+Math.floor(Math.random()*5), 1.0);
+  setTimeout(()=>play('endboard', 0.95), 190);
+}
+
+// Clappa's own voice, synthesised: a short noise burst through a bandpass is a
+// woody percussive clack, and two of them a beat apart read as "clap-pa".
+let AC=null;
+function ac(){
+  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
+  if(AC && AC.state==='suspended') AC.resume().catch(()=>{});
+  return AC;
+}
+function clack(at, freq, dur, gain){
+  const c=ac(); if(!c) return;
+  const n=Math.max(1,Math.floor(c.sampleRate*dur));
+  const buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.5);
+  const src=c.createBufferSource(); src.buffer=buf;
+  const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=freq; bp.Q.value=4.5;
+  const g=c.createGain(); g.gain.value=gain;
+  src.connect(bp); bp.connect(g); g.connect(c.destination);
+  src.start(at);
+}
+function sfxClappa(){
+  if(!soundOn) return;
+  const c=ac(); if(!c) return;
+  const t=c.currentTime;
+  clack(t,       2150, 0.055, 0.20);   // clap
+  clack(t+0.085, 1450, 0.075, 0.15);   // pa
+}
+function sfxCoin(){
+  if(!soundOn) return;
+  const c=ac(); if(!c) return;
+  const t=c.currentTime;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type='square';
+  o.frequency.setValueAtTime(900,t);
+  o.frequency.exponentialRampToValueAtTime(1800,t+0.07);
+  g.gain.setValueAtTime(0.13,t);
+  g.gain.exponentialRampToValueAtTime(0.0008,t+0.17);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t+0.19);
+}
+
+// ---------- geometry, built once the level has loaded ----------
+let B={x0:-1e4,y0:-1e4,x1:1e4,y1:1e4};
+let ROAD_PATHS=[], KERB_PATH=null, FIN={rows:6, clip:false}, MINI_B=null;
+function prepareGeometry(){
+  W = RacerCore.buildWorld(TRACK);
+  B = W.bounds(2400);    // generous blank apron so the marker never nears a screen edge
+  MINI_B = W.bounds(220);
+  ROAD_PATHS = TRACK.roads.map(r=>{
+    const p=new Path2D();
+    r.p.forEach((q,i)=> i ? p.lineTo(q[0],q[1]) : p.moveTo(q[0],q[1]));
+    return {w:r.w, path:p};
+  });
+  if(TRACK.kerbs.length){
+    KERB_PATH=new Path2D();
+    for(const k of TRACK.kerbs){
+      KERB_PATH.moveTo(k[0][0],k[0][1]);
+      for(let i=1;i<k.length;i++) KERB_PATH.lineTo(k[i][0],k[i][1]);
+      KERB_PATH.closePath();
+    }
+  }
+  // the finish strip spans the road it sits on: 50-unit squares, one per 50 of width
+  const at=W.roadAt(TRACK.finish[0],TRACK.finish[1]);
+  FIN = (at && !at.kerb) ? {rows:Math.max(2,Math.round(at.w/50)), clip:false} : {rows:8, clip:!!KERB_PATH};
+}
+
+let DPR=1;
+const cam={x:0,y:0,s:1};
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
+  cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+  cam.s=(Math.min(innerWidth,innerHeight)*DPR)/CFG.viewSpan;
+}
+addEventListener('resize',resize); resize();
+const SX=x=>(x-cam.x)*cam.s+cv.width/2;
+const SY=y=>(y-cam.y)*cam.s+cv.height/2;
+function worldTransform(){ ctx.setTransform(cam.s,0,0,cam.s, cv.width/2-cam.x*cam.s, cv.height/2-cam.y*cam.s); }
+
+// phases: loading -> menu -> armed -> lights -> running -> (dying -> running) -> finished
+const S={
+  phase:'loading', px:0, py:0,
+  elapsed:0, penalty:0, moved:false,
+  penalising:false, wasPenalising:false, warning:false,
+  hits:[], flash:0, warnGlow:0,
+  deaths:0, touches:0, sens:1, locked:false,
+  pulse:0, lockFailed:false, started:false, lightStage:-1,
+  heading:0, chompDist:0, lastMoveAt:0, lastChompCycle:-1,
+  coinsGot:[], bonus:0,
+  lightT:99, dieT:0, deathAt:null, graves:[]
+};
+function centreCam(){ cam.x=S.px; cam.y=S.py; }
+function newRun(){
+  S.px=TRACK.start[0]; S.py=TRACK.start[1];
+  S.elapsed=0; S.penalty=0; S.moved=false;
+  S.penalising=false; S.wasPenalising=false; S.warning=false;
+  S.hits=TRACK.checkpoints.map(()=>false);
+  S.flash=0; S.warnGlow=0; S.deaths=0; S.touches=0; S.started=false;
+  S.lightT=99; S.lightStage=-1; S.dieT=0; S.deathAt=null; S.graves=[];
+  S.heading=0; S.chompDist=0; S.lastMoveAt=0; S.lastChompCycle=-1;
+  S.coinsGot=TRACK.coins.map(()=>false); S.bonus=0;
+  centreCam(); arm();
+}
+function arm(){
+  S.phase='armed';
+  document.body.classList.remove('hide-cursor');
+  const p=$('prompt'); p.classList.remove('hidden');
+  if(S.started){
+    $('promptMain').innerHTML='Paused &mdash; move your cursor onto the <b>marker</b> to carry on';
+    $('promptSub').innerHTML=S.lockFailed?'If nothing happens, <b>click</b> the marker'
+                                         :'Your time and penalties are held while paused';
+    $('pauseRow').classList.remove('hidden'); p.classList.add('interactive');
+  } else {
+    $('promptMain').innerHTML='Move your cursor onto the <b>marker</b> to take control';
+    $('promptSub').innerHTML=S.lockFailed?'If nothing happens, <b>click</b> the marker'
+                                         :'Press <b>Esc</b> at any time to release the mouse';
+    $('pauseRow').classList.add('hidden'); p.classList.remove('interactive');
+  }
+}
+function takeOver(){
+  document.body.classList.add('hide-cursor');
+  $('prompt').classList.add('hidden');
+  $('prompt').classList.remove('interactive');
+  if(!S.started){ S.phase='lights'; S.lightT=0; S.lightStage=-1; }   // start lights only on a fresh run
+  else S.phase='running';
+  S.started=true;
+}
+function toMenu(){
+  S.phase='menu';
+  if(document.exitPointerLock) document.exitPointerLock();
+  document.body.classList.remove('hide-cursor');
+  $('prompt').classList.add('hidden');
+  $('ovEnd').classList.add('hidden');
+  $('ovStart').classList.remove('hidden');
+  renderStartBoard();
+}
+function startDeath(){
+  playDeath();
+  S.phase='dying'; S.dieT=0;
+  S.deathAt={x:S.px,y:S.py};
+  S.flash=1;
+}
+function finishDeath(){
+  S.graves.push(S.deathAt);
+  S.deathAt=null;
+  S.px=TRACK.start[0]; S.py=TRACK.start[1];
+  S.hits=TRACK.checkpoints.map(()=>false);
+  S.deaths++;
+  // a death is a fresh attempt: clock, penalty and contacts all start over
+  S.elapsed=0; S.penalty=0; S.moved=false; S.touches=0;
+  S.penalising=false; S.wasPenalising=false; S.warning=false;
+  S.flash=0; S.warnGlow=0; S.heading=0; S.chompDist=0; S.lastMoveAt=0;
+  centreCam();
+  S.phase='lights'; S.lightT=0; S.lightStage=-1;   // run the lights again before letting go
+}
+
+S.sens=parseFloat(store.get('rexySens','1'))||1;
+$('sens').value=S.sens; $('sensVal').textContent=S.sens.toFixed(2);
+$('sens').addEventListener('input',e=>{
+  S.sens=parseFloat(e.target.value);
+  $('sensVal').textContent=S.sens.toFixed(2);
+  store.set('rexySens',S.sens);
+});
+
+function tryLock(){
+  if(!cv.requestPointerLock) return;
+  try{ const p=cv.requestPointerLock(); if(p&&p.catch) p.catch(()=>{S.lockFailed=true;}); }
+  catch(e){ S.lockFailed=true; }
+}
+document.addEventListener('pointerlockerror',()=>{ S.lockFailed=true; arm(); });
+document.addEventListener('pointerlockchange',()=>{
+  S.locked=document.pointerLockElement===cv;
+  if(S.locked){ if(S.phase==='armed') takeOver(); }
+  else if(S.phase==='running'||S.phase==='lights'||S.phase==='dying') arm();
+});
+
+addEventListener('mousemove',e=>{
+  if(S.phase==='running'){
+    const dx=(e.movementX||0)*CFG.baseSpeed*S.sens;
+    const dy=(e.movementY||0)*CFG.baseSpeed*S.sens;
+    if(!dx&&!dy) return;
+    // Drop absurd single-event jumps. Pointer lock can emit a huge delta when the
+    // underlying cursor warps at a screen edge or the lock re-engages; integrated
+    // raw, that teleports the marker into the grass. No hand moves this fast.
+    const mag=Math.hypot(dx,dy);
+    if(mag > CFG.maxStep) return;
+    // Face the way we are travelling, and chomp by distance covered (Pac-Man
+    // style) rather than on a clock, so the mouth stills when the hand stills.
+    S.chompDist += mag;
+    S.lastMoveAt = performance.now();
+    if(mag > 0.8){
+      let d2 = Math.atan2(dy,dx) - S.heading;
+      while(d2 >  Math.PI) d2 -= Math.PI*2;
+      while(d2 < -Math.PI) d2 += Math.PI*2;
+      S.heading += d2 * 0.35;
+    }
+    if(!S.moved&&mag>CFG.moveEps) S.moved=true;
+    S.px=Math.max(B.x0,Math.min(B.x1,S.px+dx));
+    S.py=Math.max(B.y0,Math.min(B.y1,S.py+dy));
+  } else if(S.phase==='armed'){
+    const px=e.clientX*DPR,py=e.clientY*DPR;
+    if(Math.hypot(px-SX(S.px),py-SY(S.py))<Math.max(46*DPR,CFG.markerR*cam.s)) tryLock();
+  }
+});
+cv.addEventListener('click',()=>{ if(S.phase==='armed') tryLock(); });
+
+// Discreet local-leaderboard reset for whoever is running a stand: Ctrl+Alt+R.
+function resetBoard(){
+  const n=BOARD.length;
+  if(!n){ alert('Leaderboard is already empty.'); return; }
+  const NL=String.fromCharCode(10);
+  if(confirm('Clear the leaderboard?'+NL+NL+n+' score'+(n===1?'':'s')+' will be deleted. This cannot be undone.')){
+    BOARD=[];
+    try{ localStorage.removeItem(BOARD_KEY); }catch(e){}
+    renderStartBoard();
+    if(pendingEntry) renderEndBoard();
+    alert('Leaderboard cleared.');
+  }
+}
+
+addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.altKey&&(e.key==='r'||e.key==='R')&&document.activeElement!==$('pname')){
+    e.preventDefault(); resetBoard(); return;
+  }
+  if(e.key==='Escape'&&document.exitPointerLock) document.exitPointerLock();
+  // F toggles full screen, but not while typing a name into the leaderboard
+  if((e.key==='f'||e.key==='F') && document.activeElement!==$('pname')) toggleFull();
+});
+
+function begin(){
+  if(!TRACK) return;
+  ac();
+  $('ovStart').classList.add('hidden');
+  $('ovEnd').classList.add('hidden');
+  newRun();
+}
+// ---- full screen ----
+function fsElement(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+function toggleFull(){
+  try{
+    const el=document.documentElement;
+    if(!fsElement()){
+      const fn=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(fn) fn.call(el);
+    } else {
+      const fn=document.exitFullscreen||document.webkitExitFullscreen;
+      if(fn) fn.call(document);
+    }
+  }catch(e){}
+}
+function labelFull(){
+  const t=fsElement()?'Exit full screen':'Full screen';
+  $('btnFull').textContent=t; $('btnFull2').textContent=t;
+}
+if(!(document.fullscreenEnabled||document.webkitFullscreenEnabled)){
+  $('btnFull').classList.add('hidden'); $('btnFull2').classList.add('hidden');
+}
+$('btnFull').onclick=toggleFull;
+$('btnFull2').onclick=toggleFull;
+document.addEventListener('fullscreenchange',()=>{ labelFull(); resize(); });
+document.addEventListener('webkitfullscreenchange',()=>{ labelFull(); resize(); });
+
+$('sndTog').checked=soundOn;
+$('sndTog').addEventListener('change',function(){ soundOn=this.checked; store.set('rexySound',soundOn?'1':'0'); });
+$('btnStart').onclick=begin; $('btnAgain').onclick=begin; $('btnSkip').onclick=begin;
+$('btnRestart').onclick=begin; $('btnResume').onclick=tryLock; $('btnMenu').onclick=toMenu;
+
+// ---------- local leaderboard ----------
+let BOARD_KEY='rexyBoard_'+LEVEL_ID;
+let BOARD=[];
+function loadBoard(){
+  try{ const v=JSON.parse(store.get(BOARD_KEY,'[]')); return Array.isArray(v)?v:[]; }catch(e){ return []; }
+}
+function saveBoard(){ store.set(BOARD_KEY,JSON.stringify(BOARD.slice(0,200))); }
+function medalFor(t){
+  if(t<=TRACK.gold) return ['gold','#ffc233','gold'];
+  if(t<=TRACK.silver) return ['silver','#cfd6e0','silver'];
+  if(t<=TRACK.bronze) return ['bronze','#d08b52','bronze'];
+  return ['no medal','#8b97a8',null];
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// level text is escaped, then <b> and </b> are allowed back for emphasis
+function richText(s){ return esc(s).replace(/&lt;(\/?)b&gt;/g,'<$1b>'); }
+function tableHTML(rows,offset){
+  offset=offset||0;
+  let h='<table><tr><th></th><th>Name</th><th style="text-align:right">Time</th></tr>';
+  rows.forEach((e,i)=>{
+    const m=medalFor(e.total);
+    const nm = e.pending
+      ? (e.name ? esc(e.name) : '<span class="blank">&nbsp;</span>')
+      : esc(e.name);
+    h+='<tr class="'+(e.pending?'pending':(e.me?'me':''))+'">'+
+       '<td class="pos">'+(offset+i+1)+'</td><td>'+nm+
+       ' <span style="color:'+m[1]+'; font-size:10px; letter-spacing:.1em; text-transform:uppercase">'+m[0]+
+       '</span></td><td class="tm">'+e.total.toFixed(2)+'s</td></tr>';
+  });
+  return h+'</table>';
+}
+// top ten on the left, 11-20 on the right
+function boardColumns(rows){
+  const left=rows.slice(0,10), right=rows.slice(10,CFG.boardMax);
+  return '<div class="boardCols"><div class="col">'+tableHTML(left,0)+'</div>'+
+         (right.length?'<div class="col">'+tableHTML(right,10)+'</div>':'')+'</div>';
+}
+function renderStartBoard(){
+  $('startBoard').innerHTML = BOARD.length
+    ? '<div class="boardWrap">'+boardColumns(BOARD.slice(0,CFG.boardMax))+'</div>' : '';
+}
+// End-of-run board: the player's own row sits in place, blank until they type a name.
+let pendingEntry=null;
+function renderEndBoard(){
+  let rows=BOARD.slice();
+  if(pendingEntry) rows=rows.concat([pendingEntry]);
+  rows.sort((a,b)=>a.total-b.total);
+  $('endBoard').innerHTML=boardColumns(rows.slice(0,CFG.boardMax));
+}
+
+let lastResult=null;
+function finish(){
+  S.phase='finished';
+  document.body.classList.remove('hide-cursor');
+  $('prompt').classList.add('hidden');
+  if(document.exitPointerLock) document.exitPointerLock();
+  const total=Math.max(0, S.elapsed+S.penalty-S.bonus), m=medalFor(total);
+  lastResult={total:total,stamp:Date.now()};
+  pendingEntry={name:'',total:total,pending:true};
+  const mi=$('eMedalImg');
+  if(m[2]&&ART[m[2]]){ mi.src=ART[m[2]]; mi.classList.remove('hidden'); } else mi.classList.add('hidden');
+  $('eMedal').textContent=m[0]; $('eMedal').style.color=m[1];
+  $('eTotal').textContent=total.toFixed(2)+'s';
+  $('eBrk').innerHTML='run '+S.elapsed.toFixed(2)+'s  +  penalty '+S.penalty.toFixed(2)+
+    's  &minus;  bonus '+S.bonus.toFixed(2)+'s   ·   '+S.touches+' contact'+(S.touches===1?'':'s')+
+    '  ·  '+S.coinsGot.filter(Boolean).length+'/'+TRACK.coins.length+' coins  ·  '+S.deaths+' death'+(S.deaths===1?'':'s');
+  if(IN_ARCADE){
+    $('entryBlock').classList.add('hidden');
+    $('arcadeBlock').classList.remove('hidden');
+    $('arcNote').textContent = (window.RexyArcade && window.RexyArcade.note) || '';
+    $('btnGlobal').disabled = !(window.RexyArcade && window.RexyArcade.submit);
+    $('btnGlobal').textContent = 'Submit to global board';
+  } else {
+    $('entryBlock').classList.remove('hidden');
+  }
+  $('againRow').classList.add('hidden');
+  play(m[2]==='gold' ? 'gold' : m[2] ? 'medal' : 'nomedal', 0.8);
+  $('storeNote').classList.toggle('hidden',storageOK);
+  renderEndBoard();
+  $('ovEnd').classList.remove('hidden');
+  if(!IN_ARCADE){ const nm=$('pname'); nm.value=''; setTimeout(function(){ nm.focus(); },30); }
+}
+$('pname').addEventListener('input',function(){
+  if(pendingEntry){ pendingEntry.name=this.value.trim(); renderEndBoard(); }
+});
+function commitScore(){
+  const name=($('pname').value||'').trim().slice(0,14)||'Anon';
+  store.set('rexyLastName',name);
+  BOARD.push({name:name,total:lastResult.total,when:lastResult.stamp,me:true});
+  BOARD.sort(function(a,b){return a.total-b.total;});
+  BOARD.forEach(function(e){ if(e.when!==lastResult.stamp) delete e.me; });
+  saveBoard();
+  pendingEntry=null;
+  renderEndBoard(); renderStartBoard();
+  $('entryBlock').classList.add('hidden');
+  $('againRow').classList.remove('hidden');
+  $('storeNote').classList.toggle('hidden',storageOK);
+}
+$('btnSave').onclick=commitScore;
+$('btnSkipArc').onclick=begin;
+$('btnGlobal').onclick=async function(){
+  const total=lastResult.total;
+  const btn=$('btnGlobal');
+  if(!window.RexyArcade || !window.RexyArcade.submit){
+    $('arcNote').textContent='Global board unavailable — your time is saved locally.';
+    return;
+  }
+  btn.disabled=true; btn.textContent='Submitting…';
+  try{
+    const r=await window.RexyArcade.submit(total, $('ctlPick').value);
+    $('arcNote').textContent='Submitted — you are #'+r.rank+' on the global board.';
+    btn.textContent='Submitted';
+    BOARD.push({name:(window.RexyArcade.displayName||'You'), total:total, when:lastResult.stamp, me:true});
+    BOARD.sort(function(a,b){return a.total-b.total;});
+    saveBoard(); pendingEntry=null; renderEndBoard(); renderStartBoard();
+    $('againRow').classList.remove('hidden');
+  }catch(e){
+    $('arcNote').textContent=(e && e.message) ? e.message : String(e);
+    btn.disabled=false; btn.textContent='Submit to global board';
+  }
+};
+$('pname').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();commitScore();} });
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,.1); last=now;
+  S.pulse=(S.pulse+dt)%1;
+  if(!TRACK){ requestAnimationFrame(frame); return; }
+  if(S.lightT<CFG.lightEnd) S.lightT+=dt;
+
+  // one callout per light stage: roll camera, camera speed, action
+  if(S.lightT<CFG.lightEnd){
+    const stage = S.lightT<CFG.lightStep ? 0 : S.lightT<CFG.lightGo ? 1 : 2;
+    if(stage!==S.lightStage){
+      S.lightStage=stage;
+      play(['rollcamera','cameraspeed','action'][stage], 0.95);
+    }
+  }
+  if(S.phase==='lights' && S.lightT>=CFG.lightGo) S.phase='running';
+
+  if(S.phase==='dying'){
+    S.dieT+=dt;
+    if(S.dieT>=CFG.deathTime) finishDeath();
+  }
+
+  if(S.phase==='running'){
+    if(S.moved) S.elapsed+=dt;
+    const edgeGap=W.edgeOvershoot(S.px,S.py);
+    const obsGap=W.obstacleGap(S.px,S.py);
+    const R=CFG.markerR;
+    // Furniture behaves exactly like the border: clipping it runs the penalty clock,
+    // driving your centre into it is fatal.
+    const obsPen=W.obstaclePenetration(S.px,S.py);
+    if(edgeGap>CFG.edgePad || obsPen>CFG.obsKillDepth){
+      startDeath();
+    } else if((S.penalising=(edgeGap+R>0)||(obsGap<R))){
+      S.penalty+=dt; S.flash=Math.min(1,S.flash+dt*7);
+      if(!S.wasPenalising){
+        S.touches++;
+        if(now-lastTick>350){ lastTick=now; play('tick',0.45); }
+      }
+    } else S.flash=Math.max(0,S.flash-dt*4);
+    S.warning=(edgeGap+R>-CFG.warnBand)||(obsGap<R+CFG.warnBand);
+    S.warnGlow=S.warning?Math.min(1,S.warnGlow+dt*6):Math.max(0,S.warnGlow-dt*4);
+    S.wasPenalising=S.penalising;
+
+    // coins: the grab is generous, the risk is in reaching for them
+    for(let i=0;i<TRACK.coins.length;i++){
+      if(S.coinsGot[i]) continue;
+      const cn=TRACK.coins[i], cdx=S.px-cn.x, cdy=S.py-cn.y;
+      const rr=TRACK.coinR+CFG.markerR*RacerCore.RULES.coinGrabExtra;
+      if(cdx*cdx+cdy*cdy < rr*rr){ S.coinsGot[i]=true; S.bonus+=TRACK.coinBonus; sfxCoin(); }
+    }
+    // one synthesised "clap-pa" per chomp cycle, only while actually moving
+    const cyc=Math.floor(S.chompDist/CFG.chompPeriod);
+    if(cyc!==S.lastChompCycle){
+      if(S.lastChompCycle>=0 && S.moved) sfxClappa();
+      S.lastChompCycle=cyc;
+    }
+
+    let all=true;
+    for(let i=0;i<TRACK.checkpoints.length;i++){
+      if(!S.hits[i]){
+        const c=TRACK.checkpoints[i],dx=S.px-c[0],dy=S.py-c[1];
+        if(dx*dx+dy*dy<CFG.cpR*CFG.cpR) S.hits[i]=true; else all=false;
+      }
+    }
+    if(all){
+      const dx=S.px-TRACK.finish[0],dy=S.py-TRACK.finish[1];
+      if(dx*dx+dy*dy<CFG.finishR*CFG.finishR) finish();
+    }
+  }
+
+  // always centred on the marker - the apron of blank space keeps it off the edges
+  cam.x+=(S.px-cam.x)*CFG.camLerp;
+  cam.y+=(S.py-cam.y)*CFG.camLerp;
+
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function strokeRoads(extra, style){
+  ctx.strokeStyle=style; ctx.lineCap='round'; ctx.lineJoin='round';
+  for(const r of ROAD_PATHS){ ctx.lineWidth=r.w+extra; ctx.stroke(r.path); }
+  if(KERB_PATH && extra>0){ ctx.lineWidth=extra; ctx.stroke(KERB_PATH); }
+}
+
+function draw(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle='#0d1015'; ctx.fillRect(0,0,cv.width,cv.height);
+
+  // grass surround, locked to world space so it does not slide under the camera
+  if(grassPat && typeof DOMMatrix!=='undefined' && grassPat.setTransform){
+    const gk=(CFG.grassTileWorld*cam.s)/IMG.grass.width;
+    const gm=new DOMMatrix(); gm.a=gk; gm.d=gk; gm.e=SX(0); gm.f=SY(0);
+    try{ grassPat.setTransform(gm); ctx.fillStyle=grassPat; ctx.fillRect(0,0,cv.width,cv.height); }catch(e){}
+  }
+
+  worldTransform();
+  // the tolerance shoulder, straddling every edge
+  strokeRoads(CFG.edgePad*2,'#1b212a');
+
+  // the road surface; the pattern is scaled in world units and the canvas
+  // transform carries it to the screen, so the tiles stay put as the camera moves
+  let surface='#2c333e';
+  if(asphaltPat && typeof DOMMatrix!=='undefined' && asphaltPat.setTransform){
+    const k=CFG.tileWorld/IMG.asphalt.width;
+    try{ asphaltPat.setTransform(new DOMMatrix([k,0,0,k,0,0])); surface=asphaltPat; }catch(e){}
+  }
+  strokeRoads(0,surface);
+  if(KERB_PATH){ ctx.fillStyle=surface; ctx.fill(KERB_PATH,'evenodd'); }
+
+  // centre dashes on open roads, a kerb line on the maze
+  if(ROAD_PATHS.length){
+    ctx.strokeStyle='rgba(255,255,255,.13)';
+    ctx.lineWidth=Math.max(1/cam.s,4);
+    ctx.setLineDash([26,30]);
+    for(const r of ROAD_PATHS) ctx.stroke(r.path);
+    ctx.setLineDash([]);
+  }
+  if(KERB_PATH){ ctx.strokeStyle='rgba(160,175,195,.35)'; ctx.lineWidth=7; ctx.stroke(KERB_PATH); }
+  ctx.setTransform(1,0,0,1,0,0);
+
+  drawFurniture();
+  drawGraves();
+  drawFinishLine();
+  drawStart();
+  drawCoins();
+  drawPlayer();
+  drawLights();
+  drawMinimap();
+
+  $('tTime').textContent=S.elapsed.toFixed(2);
+  $('tPen').textContent=S.penalty.toFixed(2);
+  $('tPen').style.opacity=S.penalty>0?1:.35;
+  $('tBon').textContent='-'+S.bonus.toFixed(2);
+  $('tBon').style.opacity=S.bonus>0?1:.35;
+  $('tTake').textContent=(S.deaths+1);
+}
+
+// A straight chequered strip across the road: 50-unit squares, two along the
+// direction of travel (finishYaw) and one row per 50 units of road width.
+function drawFinishLine(){
+  const sq=50, rows=FIN.rows;
+  ctx.save();
+  worldTransform();
+  if(FIN.clip) ctx.clip(KERB_PATH,'evenodd');
+  ctx.translate(TRACK.finish[0], TRACK.finish[1]);
+  ctx.rotate((TRACK.finishYaw||0)*Math.PI/180);
+  for(let i=0;i<rows;i++) for(let j=0;j<2;j++){
+    ctx.fillStyle=(i+j)%2?'#f2f4f8':'#11151b';
+    ctx.fillRect(-sq+j*sq, -rows*sq/2+i*sq, sq, sq);
+  }
+  ctx.restore();
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+function drawStart(){
+  const p=TRACK.start;
+  if(TRACK.startStyle==='cap'){
+    // fill (disc around the start) ∩ (the road), so a rounded road end fills exactly
+    const radius=170;
+    ctx.save(); worldTransform();
+    ctx.beginPath(); ctx.arc(p[0],p[1],radius,0,Math.PI*2); ctx.clip();
+    if(KERB_PATH) ctx.clip(KERB_PATH,'evenodd');
+    ctx.fillStyle='rgba(79,143,203,.55)';
+    ctx.fillRect(p[0]-radius,p[1]-radius,radius*2,radius*2);
+    ctx.strokeStyle='rgba(79,143,203,.9)'; ctx.lineWidth=10;
+    ctx.beginPath(); ctx.arc(p[0],p[1],radius*0.72,0,Math.PI*2); ctx.stroke();
+    ctx.restore(); ctx.setTransform(1,0,0,1,0,0);
+  } else {
+    ctx.beginPath(); ctx.arc(SX(p[0]),SY(p[1]),14*cam.s,0,Math.PI*2);
+    ctx.fillStyle='rgba(49,209,88,.8)'; ctx.fill();
+  }
+}
+
+function drawFurniture(){
+  for(const o of TRACK.obstacles){
+    ctx.save();
+    ctx.translate(SX(o.x),SY(o.y));
+    ctx.rotate((o.a||0)*Math.PI/180);
+    const rad=(o.h!=null?o.h:Math.max(o.hx,o.hy))*cam.s;
+    if(o.t==='cone'){
+      const r=rad,P=PAL.cone;
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);      ctx.fillStyle=P.base;ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,r*0.84,0,Math.PI*2); ctx.fillStyle=P.body;ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,r*0.56,0,Math.PI*2); ctx.fillStyle=P.band;ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,r*0.32,0,Math.PI*2); ctx.fillStyle=P.tip; ctx.fill();
+    } else if(o.t==='barrel'){
+      const r=rad,P=PAL.barrel;
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);      ctx.fillStyle=P.rim; ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,r*0.88,0,Math.PI*2); ctx.fillStyle=P.body;ctx.fill();
+      ctx.beginPath();ctx.arc(0,0,r*0.6,0,Math.PI*2);
+      ctx.strokeStyle=P.hoop;ctx.lineWidth=Math.max(1,r*0.13);ctx.stroke();
+      ctx.beginPath();ctx.arc(0,0,r*0.22,0,Math.PI*2); ctx.fillStyle=P.top; ctx.fill();
+    } else {
+      const w=o.hx*2*cam.s,h=o.hy*2*cam.s,P=PAL.barrier;
+      ctx.fillStyle=P.body; ctx.fillRect(-w/2,-h/2,w,h);
+      ctx.fillStyle=P.light; ctx.fillRect(-w/2,-h/2,w,Math.max(1,h*0.22));
+      ctx.strokeStyle=P.edge; ctx.lineWidth=Math.max(1,Math.min(w,h)*0.12);
+      ctx.strokeRect(-w/2,-h/2,w,h);
+    }
+    ctx.restore();
+  }
+}
+
+function drawGraves(){
+  const P=PAL.grave;
+  for(const g of S.graves){
+    const x=SX(g.x),y=SY(g.y),w=52*cam.s,h=64*cam.s;
+    ctx.save(); ctx.translate(x,y);
+    ctx.beginPath(); ctx.ellipse(0,h*0.42,w*0.72,h*0.16,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,.42)'; ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-w/2,h*0.4); ctx.lineTo(-w/2,-h*0.1);
+    ctx.arc(0,-h*0.1,w/2,Math.PI,0);
+    ctx.lineTo(w/2,h*0.4); ctx.closePath();
+    ctx.fillStyle=P.stone; ctx.fill();
+    ctx.strokeStyle=P.shade; ctx.lineWidth=Math.max(1,2*cam.s); ctx.stroke();
+    ctx.strokeStyle=P.mark; ctx.lineWidth=Math.max(1.5,5*cam.s); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,-h*0.28); ctx.lineTo(0,h*0.12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w*0.2,-h*0.1); ctx.lineTo(w*0.2,-h*0.1); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawCoins(){
+  for(let i=0;i<TRACK.coins.length;i++){
+    if(S.coinsGot[i]) continue;
+    const c=TRACK.coins[i], x=SX(c.x), y=SY(c.y);
+    const puls=1+0.08*Math.sin(S.pulse*Math.PI*2+i);
+    const r=TRACK.coinR*cam.s*0.78*puls;
+    ctx.beginPath(); ctx.arc(x,y,r*1.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(246,190,26,.16)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle='#f6be1a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r*0.62,0,Math.PI*2);
+    ctx.strokeStyle='rgba(120,84,0,.55)'; ctx.lineWidth=Math.max(1,r*0.16); ctx.stroke();
+  }
+}
+
+function drawPlayer(){
+  if(S.phase==='menu'||S.phase==='loading') return;
+  const x=SX(S.px),y=SY(S.py);
+  let alpha=1, scale=1;
+  if(S.phase==='dying'){
+    const k=Math.min(1,S.dieT/CFG.deathTime);
+    alpha=1-k; scale=1-k*0.55;
+  }
+  if(alpha<=0.01) return;
+
+  const hot=S.flash,warn=S.warnGlow,d=CFG.markerR*2*cam.s*scale;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  const glow=Math.max(hot,warn*0.55);
+  if(glow>0.02){
+    ctx.beginPath(); ctx.arc(x,y,d*0.8*(1+hot*.28),0,Math.PI*2);
+    ctx.fillStyle='rgba(255,59,48,'+(0.14+glow*0.5)+')'; ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(x,y,d*0.72,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,194,51,.16)'; ctx.fill();
+  }
+  const im=IMG.chomp;
+  if(im&&im.complete&&im.naturalWidth){
+    const F=im.naturalHeight;                        // square frames laid out in a row
+    const n=Math.max(1, Math.round(im.naturalWidth/F));
+    const SEQ=[0,1,2,3,2,1];
+    const moving=(performance.now()-S.lastMoveAt) < 130;
+    let fi=0;
+    if(moving){
+      const t=(S.chompDist % CFG.chompPeriod)/CFG.chompPeriod;
+      fi=SEQ[Math.floor(t*SEQ.length) % SEQ.length];
+    }
+    fi=Math.min(fi, n-1);
+    // Mirror rather than rotate past vertical, so the eye stays on top when he
+    // travels right-to-left: rotate(a) then scaleX(-1), with |a| kept under 90 degrees.
+    let a=S.heading;
+    while(a >  Math.PI) a -= Math.PI*2;
+    while(a < -Math.PI) a += Math.PI*2;
+    const flip = Math.abs(a) > Math.PI/2;
+    if(flip) a = a > 0 ? a - Math.PI : a + Math.PI;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(a);
+    if(flip) ctx.scale(-1,1);
+    ctx.drawImage(im, fi*F, 0, F, F, -d/2, -d/2, d, d);
+    ctx.restore();
+  } else { ctx.beginPath();ctx.arc(x,y,d*.32,0,Math.PI*2);ctx.fillStyle='#ffc233';ctx.fill(); }
+  if(hot>0.02){
+    ctx.beginPath(); ctx.arc(x,y,d*0.52,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,59,48,'+(0.55+hot*0.45)+')';
+    ctx.lineWidth=Math.max(2,d*0.06); ctx.stroke();
+  }
+  if(S.phase==='armed'){
+    const t=Math.sin(S.pulse*Math.PI*2)*.5+.5;
+    ctx.beginPath(); ctx.arc(x,y,(d*0.6)*(0.95+t*0.35),0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,194,51,'+(0.35+t*0.45)+')';
+    ctx.lineWidth=2.5*DPR; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Koen's own start light: one red, then two red, then green.
+function drawLights(){
+  if(S.lightT>=CFG.lightEnd) return;
+  const t=S.lightT;
+  const key = t<CFG.lightStep ? 'light1' : t<CFG.lightGo ? 'light2' : 'light3';
+  const im=IMG[key];
+  if(!im||!im.complete||!im.naturalWidth) return;
+  let a=1;
+  if(t>CFG.lightGo) a=Math.max(0,1-(t-CFG.lightGo)/(CFG.lightEnd-CFG.lightGo));
+  const w=Math.min(cv.width*0.17,210*DPR), h=w*im.naturalHeight/im.naturalWidth;
+  // directly above the marker, so the player stays visible and can go on green
+  const x=SX(S.px)-w/2, y=SY(S.py)-h-CFG.markerR*1.5*cam.s;
+  ctx.save(); ctx.globalAlpha=a;
+  ctx.drawImage(im,x,y,w,h);
+  ctx.restore();
+}
+
+function drawMinimap(){
+  const pad=16*DPR,w=CFG.miniW*DPR;
+  const {x0,y0,x1,y1}=MINI_B;
+  const s=w/(x1-x0),h=(y1-y0)*s;
+  const ox=cv.width-w-pad,oy=cv.height-h-pad;
+  const mx=x=>ox+(x-x0)*s,my=y=>oy+(y-y0)*s;
+  ctx.save();
+  ctx.fillStyle='rgba(13,16,21,.82)';ctx.strokeStyle='#232b36';ctx.lineWidth=1*DPR;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(ox-8*DPR,oy-8*DPR,w+16*DPR,h+16*DPR,8*DPR);
+  else ctx.rect(ox-8*DPR,oy-8*DPR,w+16*DPR,h+16*DPR);
+  ctx.fill();ctx.stroke();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(ox-8*DPR,oy-8*DPR,w+16*DPR,h+16*DPR); ctx.clip();
+  ctx.setTransform(s,0,0,s, ox-x0*s, oy-y0*s);
+  ctx.strokeStyle='#39424f';ctx.lineCap='round';ctx.lineJoin='round';
+  for(const r of ROAD_PATHS){ ctx.lineWidth=Math.max(1.5*DPR/s,r.w); ctx.stroke(r.path); }
+  if(KERB_PATH){ ctx.fillStyle='#39424f'; ctx.fill(KERB_PATH,'evenodd'); }
+  ctx.restore();
+  // street furniture, in its own colours, drawn under the checkpoint pips
+  for(const o of TRACK.obstacles){
+    ctx.beginPath();ctx.arc(mx(o.x),my(o.y),1.8*DPR,0,Math.PI*2);
+    ctx.fillStyle = o.t==='cone' ? 'rgba(232,98,42,.88)'
+                  : o.t==='barrel' ? 'rgba(201,59,59,.88)' : 'rgba(140,133,128,.88)';
+    ctx.fill();
+  }
+  for(let i=0;i<TRACK.checkpoints.length;i++){
+    if(S.hits[i]) continue;
+    const c=TRACK.checkpoints[i];
+    ctx.beginPath();ctx.arc(mx(c[0]),my(c[1]),2.2*DPR,0,Math.PI*2);
+    ctx.fillStyle='rgba(139,151,168,.65)';ctx.fill();
+  }
+  for(const g of S.graves){
+    ctx.beginPath();ctx.arc(mx(g.x),my(g.y),2.6*DPR,0,Math.PI*2);
+    ctx.fillStyle='rgba(139,151,168,.9)';ctx.fill();
+  }
+  ctx.beginPath();ctx.arc(mx(TRACK.finish[0]),my(TRACK.finish[1]),3.4*DPR,0,Math.PI*2);
+  ctx.fillStyle='#f2f4f8';ctx.fill();
+  if(S.phase!=='menu'&&S.phase!=='loading'){
+    ctx.beginPath();ctx.arc(mx(S.px),my(S.py),3.8*DPR,0,Math.PI*2);
+    ctx.fillStyle=S.flash>.5?'#ff3b30':'#ffc233';ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---------- boot ----------
+async function getJSON(url, fresh){
+  const r=await fetch(url, fresh?{cache:'no-cache'}:{});
+  if(!r.ok) throw new Error(url+' — HTTP '+r.status);
+  return r.json();
+}
+function readDraft(){
+  const raw=store.get(DRAFT_KEY,null);
+  if(!raw) throw new Error('No draft level yet — press Test play in the level editor.');
+  return JSON.parse(raw);
+}
+function applyLevel(raw){
+  TRACK=RacerCore.normalise(raw);
+  GAME_ID=TRACK.id;
+  CFG.edgePad=TRACK.edgePad;
+  document.title='Rexy Racer — '+TRACK.title;
+  $('lvTitle').textContent=TRACK.title;
+  $('lvByline').textContent=TRACK.byline||'';
+  $('lvBlurb').textContent=TRACK.blurb||'';
+  const coinRule=$('coinRule');
+  for(const t of TRACK.tips){ const li=document.createElement('li'); li.innerHTML=richText(t); coinRule.parentNode.insertBefore(li,coinRule); }
+  if(!TRACK.coins.length) coinRule.classList.add('hidden');
+  const cls={rexy:'rexy',aco:'aco',tinytape:'tiny'}, alt={rexy:'Rexy Gaming',aco:'Association of Camera Operators',tinytape:'Tiny Tape'};
+  $('brand').innerHTML='';
+  for(const k of TRACK.badges){
+    if(!ART[k]) continue;
+    const im=document.createElement('img'); im.className=cls[k]||'tiny'; im.alt=alt[k]||k; im.src=ART[k];
+    $('brand').appendChild(im);
+  }
+  $('tG').textContent=TRACK.gold.toFixed(0)+'s';
+  $('tS').textContent=TRACK.silver.toFixed(0)+'s';
+  $('tB').textContent=TRACK.bronze.toFixed(0)+'s';
+  BOARD_KEY = IS_DRAFT ? 'rexyBoard_draft' : (TRACK.boardKey || 'rexyBoard_'+TRACK.id);
+  BOARD=loadBoard();
+  prepareGeometry();
+  S.px=TRACK.start[0]; S.py=TRACK.start[1];
+  S.hits=TRACK.checkpoints.map(()=>false);
+  S.coinsGot=TRACK.coins.map(()=>false);
+  centreCam();
+  renderStartBoard();
+}
+function loadAssets(){
+  for(const k in ART){ const i=new Image(); i.src=ART[k]; IMG[k]=i; }
+  IMG.asphalt.onload=()=>{ try{ asphaltPat=ctx.createPattern(IMG.asphalt,'repeat'); }catch(e){} };
+  IMG.grass.onload=()=>{ try{ grassPat=ctx.createPattern(IMG.grass,'repeat'); }catch(e){} };
+  for(const k in SND){ const a=new Audio(SND[k]); a.preload='auto'; AUD[k]=a; }
+}
+
+(async function boot(){
+  requestAnimationFrame(frame);
+  if(IS_DRAFT) $('draftTag').classList.remove('hidden');
+  try{
+    const lv = IS_DRAFT ? Promise.resolve(readDraft()) : getJSON('levels/'+LEVEL_ID+'.json', true);
+    const got = await Promise.all([getJSON('art.json'), getJSON('snd.json'), lv]);
+    ART=got[0]; SND=got[1];
+    loadAssets();
+    applyLevel(got[2]);
+    S.phase='menu';
+    $('btnStart').disabled=false;
+  }catch(e){
+    $('lvTitle').textContent='level not found';
+    $('loadNote').textContent=(e && e.message) || String(e);
+    $('loadNote').classList.remove('hidden');
+    return;
+  }
+  // the editor rewrote the draft: pick it up, unless a run is under way
+  if(IS_DRAFT) addEventListener('storage', e=>{
+    if(e.key===DRAFT_KEY && (S.phase==='menu'||S.phase==='finished')) location.reload();
+  });
+  if(IN_ARCADE) arcadeBridge();
+})();
+
+// ============================================================
+// Arcade bridge. Only runs when embedded in the Rexy Arcade shell (same
+// origin), where it reuses the shell's Supabase session. Standalone and in
+// test play none of this runs and the local leaderboard is all there is.
+// ============================================================
+async function arcadeBridge(){
+  const note = (t) => { $('arcNote').textContent = t; };
+  try {
+    const Rexy = await import('../../lib/rexy-leaderboard.js');
+    await Rexy.init();
+
+    const pick = $('ctlPick');
+    pick.innerHTML = Rexy.CONTROLS.map(c => '<option value="' + c[0] + '">' + esc(c[1]) + '</option>').join('');
+    const remembered = store.get('rexyControl', null);
+    if (remembered) pick.value = remembered;
+    pick.addEventListener('change', () => store.set('rexyControl', pick.value));
+
+    window.RexyArcade = {
+      active: true,
+      displayName: null,
+      note: '',
+      async submit(totalSeconds, control) {
+        // The board ranks high-to-low, so a time trial submits base minus the
+        // elapsed milliseconds. games.json turns it back into a time for display.
+        const score = Math.max(0, SCORE_BASE - Math.round(totalSeconds * 1000));
+        const r = await Rexy.submitScore(GAME_ID, control, score, {
+          meta: { total_ms: Math.round(totalSeconds * 1000), track: GAME_ID }
+        });
+        try {
+          window.parent.postMessage({ type: 'rexy:gameover', id: GAME_ID, score, control, rank: r.rank }, location.origin);
+        } catch (e) {}
+        return r;
+      }
+    };
+
+    // The shell tells us who is signed in, and again whenever that changes.
+    addEventListener('message', (e) => {
+      if (e.origin !== location.origin) return;
+      const d = e.data;
+      if (!d || d.type !== 'rexy:auth') return;
+      window.RexyArcade.displayName = d.displayName || null;
+      window.RexyArcade.note = d.signedIn
+        ? (d.displayName ? '' : 'Choose a display name in the arcade header first.')
+        : 'Sign in from the arcade header to post to the global board.';
+      note(window.RexyArcade.note);
+    });
+
+    const u = await Rexy.getUser();
+    if (!u) {
+      window.RexyArcade.note = 'Sign in from the arcade header to post to the global board.';
+      try { window.parent.postMessage({ type: 'rexy:needsauth', id: GAME_ID }, location.origin); } catch (e) {}
+    } else {
+      const p = await Rexy.getProfile();
+      window.RexyArcade.displayName = p && p.display_name;
+    }
+    note(window.RexyArcade.note);
+  } catch (e) {
+    window.RexyArcade = { active: false, note: 'Global board unavailable: ' + (e.message || e) };
+    note(window.RexyArcade.note);
+  }
+}
+</script>
