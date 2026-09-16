@@ -18,6 +18,37 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENGINE_URL = 'games/racer/index.html?level=%s'
 
 
+IMG_EXT = {'png': 'png', 'jpeg': 'jpg', 'jpg': 'jpg', 'webp': 'webp', 'gif': 'gif', 'svg+xml': 'svg'}
+
+
+def extract_images(doc, lid):
+    # Backdrop and textures arrive inline as data: URLs. Save each as a file in
+    # games/racer/levels/<id>/ and point the level at it (paths are relative to levels/).
+    folder = os.path.join(ROOT, 'games', 'racer', 'levels', lid)
+    slots = []
+    if doc.get('backdrop'):
+        slots.append(('backdrop', doc['backdrop']))
+    for k, v in (doc.get('textures') or {}).items():
+        slots.append((k, v))
+    saved = []
+    for name, obj in slots:
+        m = re.match(r'data:image/([a-z+]+);base64,(.*)', obj.get('src', ''), re.S)
+        if not m:
+            continue                      # already a file in the repo
+        ext = IMG_EXT.get(m.group(1))
+        if not ext:
+            sys.exit('unsupported %s image type: %s' % (name, m.group(1)))
+        os.makedirs(folder, exist_ok=True)
+        for old in os.listdir(folder):    # a replacement may change format
+            if os.path.splitext(old)[0] == name:
+                os.remove(os.path.join(folder, old))
+        with open(os.path.join(folder, name + '.' + ext), 'wb') as f:
+            f.write(base64.b64decode(m.group(2)))
+        obj['src'] = '%s/%s.%s' % (lid, name, ext)
+        saved.append('games/racer/levels/' + obj['src'])
+    return saved
+
+
 def main(path):
     with io.open(path, encoding='utf-8') as f:
         doc = json.load(f)
@@ -26,6 +57,8 @@ def main(path):
     lid = doc.get('id', '')
     if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', lid) or lid == 'draft':
         sys.exit('bad level id %r - lowercase letters, digits, - and _ only' % lid)
+
+    saved = extract_images(doc, lid)
 
     arcade = dict(doc.get('arcade') or {})
     thumb = arcade.pop('thumb', None)
@@ -79,6 +112,8 @@ def main(path):
     print('  ' + os.path.relpath(lvl_path, ROOT))
     if thumb_rel:
         print('  ' + thumb_rel)
+    for s in saved:
+        print('  ' + s)
     print('  games.json -> ' + entry['url'])
 
 

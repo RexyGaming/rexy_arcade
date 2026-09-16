@@ -738,6 +738,13 @@ function draw(){
   }
 
   worldTransform();
+  // the level's backdrop artwork, laid on the ground under the track
+  const bd=TRACK.backdrop, bi=IMG.backdrop;
+  if(bd && bi && bi.complete && bi.naturalWidth){
+    ctx.globalAlpha=bd.opacity==null?1:bd.opacity;
+    ctx.drawImage(bi,bd.x,bd.y,bd.w,bd.h);
+    ctx.globalAlpha=1;
+  }
   // the tolerance shoulder, straddling every edge
   strokeRoads(CFG.edgePad*2,'#1b212a');
 
@@ -1044,10 +1051,25 @@ function applyLevel(raw){
   centreCam();
   renderStartBoard();
 }
+// level images live next to the level file (levels/<id>/...), or inline as data: URLs in test play
+function levelSrc(s){ return /^(data:|https?:|blob:)/.test(s) ? s : 'levels/'+s; }
 function loadAssets(){
-  for(const k in ART){ const i=new Image(); i.src=ART[k]; IMG[k]=i; }
-  IMG.asphalt.onload=()=>{ try{ asphaltPat=ctx.createPattern(IMG.asphalt,'repeat'); }catch(e){} };
-  IMG.grass.onload=()=>{ try{ grassPat=ctx.createPattern(IMG.grass,'repeat'); }catch(e){} };
+  const tex=TRACK.textures||{};
+  const custom={
+    grass:   tex.grass && tex.grass.src ? levelSrc(tex.grass.src) : null,
+    asphalt: tex.road  && tex.road.src  ? levelSrc(tex.road.src)  : null
+  };
+  if(tex.grass && tex.grass.tile) CFG.grassTileWorld=tex.grass.tile;
+  if(tex.road  && tex.road.tile)  CFG.tileWorld=tex.road.tile;
+  for(const k in ART){
+    const i=new Image(); IMG[k]=i;
+    if(k==='asphalt') i.onload=()=>{ try{ asphaltPat=ctx.createPattern(i,'repeat'); }catch(e){} };
+    if(k==='grass')   i.onload=()=>{ try{ grassPat=ctx.createPattern(i,'repeat'); }catch(e){} };
+    // a custom texture that fails to load falls back to the standard one
+    if(custom[k]) i.onerror=()=>{ if(i.src!==ART[k]){ CFG.tileWorld=620; CFG.grassTileWorld=900; i.src=ART[k]; } };
+    i.src=custom[k]||ART[k];
+  }
+  if(TRACK.backdrop && TRACK.backdrop.src){ const b=new Image(); b.src=levelSrc(TRACK.backdrop.src); IMG.backdrop=b; }
   for(const k in SND){ const a=new Audio(SND[k]); a.preload='auto'; AUD[k]=a; }
 }
 
@@ -1058,8 +1080,8 @@ function loadAssets(){
     const lv = IS_DRAFT ? Promise.resolve(readDraft()) : getJSON('levels/'+LEVEL_ID+'.json', true);
     const got = await Promise.all([getJSON('art.json'), getJSON('snd.json'), lv]);
     ART=got[0]; SND=got[1];
-    loadAssets();
     applyLevel(got[2]);
+    loadAssets();
     S.phase='menu';
     $('btnStart').disabled=false;
   }catch(e){

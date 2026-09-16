@@ -59,6 +59,10 @@ To publish an exported level:
 python tools/add_level.py path/to/<id>.json
 ```
 
+A level can also carry its own look: a backdrop image laid under the track and
+custom road/grass tile textures (the editor's Look panel). Exports carry them
+inline; `add_level.py` saves them to `games/racer/levels/<id>/`.
+
 That writes the level file, the card thumbnail and the `games.json` entry. Scores
 are keyed by the level id, so never rename the id of a level that has scores.
 `games/rexy-racer-aco/` and `games/rexy-logo/` are the old one-page builds, kept

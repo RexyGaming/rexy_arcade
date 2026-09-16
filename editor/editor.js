@@ -36,7 +36,8 @@ function blankProject() {
       id: 'my-level', title: 'My Level', byline: '', blurb: 'Steady hands. Follow the track, don\'t touch the walls.',
       tips: [], badges: ['rexy', 'aco', 'tinytape'], startStyle: 'dot', boardKey: null,
       coinR: 55, coinBonus: 0.5, edgePad: 50, gold: 30, silver: 45, bronze: 60, kerbs: [],
-      arcade: { description: '', credit: '' }
+      arcade: { description: '', credit: '' },
+      look: { backdrop: null, road: null, grass: null }
     },
     roads: [], obstacles: [], coins: [], checkpoints: [],
     start: [0, 0], finish: [2400, 0], finishYaw: 0
@@ -52,6 +53,16 @@ function projectFromLevel(doc, entry) {
     if (!lv.arcade.description) lv.arcade.description = entry.description || '';
     if (!lv.arcade.credit) lv.arcade.credit = entry.credit || '';
   }
+  lv.look = { backdrop: null, road: null, grass: null };
+  clearAssets();
+  const bd = doc.backdrop;
+  if (bd && bd.src) {
+    putAsset('backdrop', bd.src);
+    lv.look.backdrop = { x: bd.x, y: bd.y, w: bd.w, h: bd.h, opacity: bd.opacity == null ? 1 : bd.opacity };
+  }
+  const tx = doc.textures || {};
+  for (const k of ['road', 'grass'])
+    if (tx[k] && tx[k].src) { putAsset(k, tx[k].src); lv.look[k] = { tile: tx[k].tile || TILE[k] }; }
   p.roads = (doc.editor && Array.isArray(doc.editor.roads))
     ? clone(doc.editor.roads)
     : N.roads.map(r => ({ kind: 'poly', w: r.w, ctrl: clone(r.p) }));
@@ -62,18 +73,47 @@ function projectFromLevel(doc, entry) {
 function loadProject() {
   try {
     const s = store.get(KEY.project);
-    if (s) { const p = JSON.parse(s); if (p && p.level && Array.isArray(p.roads)) return p; }
+    if (s) {
+      const p = JSON.parse(s);
+      if (p && p.level && Array.isArray(p.roads)) { p.level.look = p.level.look || { backdrop: null, road: null, grass: null }; return p; }
+    }
   } catch (e) {}
   return blankProject();
 }
 let P = loadProject();
 let dirtySinceExport = false;
 
+// ---------- level images: backdrop, road and grass textures ----------
+// Kept out of the project JSON (each can be a big data URL), so undo snapshots stay
+// small. A value is a data: URL, or a path relative to games/racer/levels/.
+const ASSET_KEY = 'rexyEditorAsset:', ASSET_IDS = ['backdrop', 'road', 'grass'];
+const TILE = { road: 620, grass: 900 };
+const ASSETS = {}, AIMG = {};
+function assetUrl(id) {
+  const s = ASSETS[id];
+  if (!s) return null;
+  return /^(data:|https?:|blob:)/.test(s) ? s : '../games/racer/levels/' + s;
+}
+function putAsset(id, src) {
+  ASSETS[id] = src; delete AIMG[id];
+  if (!store.set(ASSET_KEY + id, src))
+    toast('That image is too big to remember between sessions. It will still test-play and export, but load it again if you reload the editor.');
+  const im = new Image();
+  im.onload = () => { if (ASSETS[id] === src) { AIMG[id] = im; need(); renderLook(); } };
+  im.onerror = () => toast('Couldn\'t load the ' + id + ' image.', true);
+  im.src = assetUrl(id);
+}
+function dropAsset(id) { delete ASSETS[id]; delete AIMG[id]; store.del(ASSET_KEY + id); }
+function clearAssets() { for (const id of ASSET_IDS) dropAsset(id); }
+const loadImg = src => new Promise((res, rej) => {
+  const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('unreadable image')); i.src = src;
+});
+
 function roadValid(r) { return r.kind === 'pieces' ? !!(r.pieces && r.pieces.length) : !!(r.ctrl && r.ctrl.length >= 2); }
 
 // ---------- compiled state: polylines + the collision world ----------
 let CR = [], WORLD = null, KERB_PATH = null, KERB_SIG = '';
-function compile() {
+function compile(withAssets) {
   const lv = P.level, out = { format: 'rexy-racer-level', version: 1 };
   for (const k of ['id', 'title', 'byline', 'blurb', 'tips', 'badges', 'boardKey', 'startStyle', 'coinR', 'coinBonus',
                    'edgePad', 'gold', 'silver', 'bronze'])
@@ -82,6 +122,13 @@ function compile() {
   out.kerbs = lv.kerbs;
   out.obstacles = P.obstacles; out.coins = P.coins; out.checkpoints = P.checkpoints;
   out.start = P.start; out.finish = P.finish; out.finishYaw = P.finishYaw;
+  if (withAssets) {
+    const look = lv.look || {};
+    if (look.backdrop && ASSETS.backdrop) out.backdrop = Object.assign({ src: ASSETS.backdrop }, look.backdrop);
+    const tx = {};
+    for (const k of ['road', 'grass']) if (look[k] && ASSETS[k]) tx[k] = { src: ASSETS[k], tile: look[k].tile || TILE[k] };
+    if (Object.keys(tx).length) out.textures = tx;
+  }
   return out;
 }
 function rebuild() {
@@ -104,7 +151,7 @@ function rebuild() {
 }
 function exportDoc() {
   rebuild();
-  const d = clone(compile());
+  const d = clone(compile(true));
   if (!d.boardKey) delete d.boardKey;
   d.arcade = { description: P.level.arcade.description || '', credit: P.level.arcade.credit || '' };
   d.editor = { roads: clone(P.roads) };
@@ -158,6 +205,7 @@ const ICON = {
   checkpoint: '<circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2.4"/><circle cx="10" cy="10" r="1.8" fill="currentColor"/>',
   start: '<circle cx="10" cy="10" r="7" fill="#ce2a7c"/>',
   finish: '<rect x="4" y="2" width="12" height="16" fill="#eee"/><path d="M4 2h6v4H4zM10 6h6v4h-6zM4 10h6v4H4zM10 14h6v4h-6z" fill="#11151b"/>',
+  backdrop: '<rect x="2" y="3" width="16" height="14" rx="2" fill="#CE2A7C" opacity=".55"/><path d="M4 14c3-7 6 1 12-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
   underlay: '<rect x="2.5" y="4" width="15" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 14l4-5 3 3 2-2 3 4z" fill="currentColor"/>'
 };
 const TOOLS = [
@@ -175,12 +223,13 @@ const TOOLS = [
   { id: 'start', key: 'S', name: 'Start', help: 'Click to move the start.' },
   { id: 'finish', key: 'F', name: 'Finish', help: 'Click to move the finish. The strip lines itself up with the road; <b>Q</b>/<b>E</b> to adjust.' },
   { sep: true },
+  { id: 'backdrop', key: 'G', name: 'Backdrop', help: 'Drag the level backdrop into place. Load it, and set its size and opacity, in the Look panel.' },
   { id: 'underlay', key: 'U', name: 'Underlay', help: 'Drag the tracing image into place. Load one, and set its size and opacity, in the Underlay panel.' }
 ];
 const UI = {
   tool: 'select', sel: null, drawing: false, drag: null, space: false,
   roadW: 300, pieceLen: 600, pieceR: 600, pieceDeg: 90,
-  heat: true, line: true, probe: true, auto: true,
+  heat: true, line: true, probe: true, auto: true, showBackdrop: true,
   mouse: { in: false, wx: 0, wy: 0 }
 };
 
@@ -277,35 +326,37 @@ function setUnderlay(src, name, place) {
 function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('could not load ' + src)); document.head.append(s); });
 }
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+// Any picture or the first page of a PDF, as a data URL no bigger than maxSide.
+// PDFs render on white for tracing, or transparent (PNG) for artwork that goes in the level.
+async function imageFromFile(file, maxSide, whiteBg) {
+  if (isPdf(file)) {
+    toast('Rendering the PDF…');
+    const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+    if (!window.pdfjsLib) { await loadScript(base + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; }
+    const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await doc.getPage(1);
+    const v0 = page.getViewport({ scale: 1 }), sc = maxSide / Math.max(v0.width, v0.height);
+    const vp = page.getViewport({ scale: sc });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const g = c.getContext('2d');
+    if (whiteBg) { g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); }
+    await page.render({ canvasContext: g, viewport: vp, background: whiteBg ? 'white' : 'rgba(0,0,0,0)' }).promise;
+    return c.toDataURL(whiteBg ? 'image/jpeg' : 'image/png', 0.88);
+  }
+  const src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+  const im = await loadImg(src);
+  const m = Math.max(im.naturalWidth, im.naturalHeight);
+  if (m <= maxSide && src.length <= 2.5e6) return src;
+  // keep big pictures to a size browser storage can hold; keep transparency where the file has it
+  const k = Math.min(1, maxSide / Math.max(1, m)), c = document.createElement('canvas');
+  c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+  return c.toDataURL(/png|webp|gif|svg/i.test(file.type) ? 'image/png' : 'image/jpeg', 0.88);
+}
 async function underlayFromFile(file) {
-  try {
-    let src;
-    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-      toast('Rendering the PDF…');
-      const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-      if (!window.pdfjsLib) { await loadScript(base + 'pdf.min.js'); pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; }
-      const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-      const page = await doc.getPage(1);
-      const v0 = page.getViewport({ scale: 1 }), sc = 2400 / Math.max(v0.width, v0.height);
-      const vp = page.getViewport({ scale: sc });
-      const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
-      await page.render({ canvasContext: g, viewport: vp }).promise;
-      src = c.toDataURL('image/jpeg', 0.86);
-    } else {
-      src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
-      // keep big photos to a size localStorage can hold
-      const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-      const m = Math.max(im.naturalWidth, im.naturalHeight);
-      if (m > 2400 || src.length > 2.5e6) {
-        const k = Math.min(1, 2400 / m), c = document.createElement('canvas');
-        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-        src = c.toDataURL('image/jpeg', 0.86);
-      }
-    }
-    setUnderlay(src, file.name, true);
-  } catch (e) { toast('Couldn\'t load the underlay: ' + (e.message || e), true); }
+  try { setUnderlay(await imageFromFile(file, 2400, true), file.name, true); }
+  catch (e) { toast('Couldn\'t load the underlay: ' + (e.message || e), true); }
 }
 
 // ---------- geometry helpers ----------
@@ -578,6 +629,11 @@ const DOWN = {
     const at = WORLD.roadAt(wx, wy); if (at) P.finishYaw = normDeg(at.deg);
     rebuild(); select(s); UI.drag = { kind: 'finishPlace', s };
   },
+  backdrop(wx, wy) {
+    const b = P.level.look.backdrop;
+    if (!b || !ASSETS.backdrop) { toast('Load a backdrop in the Look panel first.'); return; }
+    begin(); UI.drag = { kind: 'bd', ox: wx - b.x, oy: wy - b.y };
+  },
   underlay(wx, wy) { if (!UL.img) { toast('Load an image or PDF in the Underlay panel first.'); return; } UI.drag = { kind: 'ul', ox: wx - UL.x, oy: wy - UL.y }; }
 };
 
@@ -621,6 +677,11 @@ function dragMove(d, wx, wy, e) {
       if (UI.sel.t === 'obs') P.obstacles[UI.sel.i].a = normDeg(deg); else P.finishYaw = normDeg(deg);
       rebuild(); break;
     }
+    case 'bd': {
+      const b = P.level.look.backdrop;
+      if (b) { b.x = r1(wx - d.ox); b.y = r1(wy - d.oy); }
+      break;
+    }
     case 'ul':
       UL.x = wx - d.ox; UL.y = wy - d.oy; break;
   }
@@ -628,7 +689,7 @@ function dragMove(d, wx, wy, e) {
 function cursorFor() {
   const t = UI.tool;
   cv.style.cursor = (UI.drag && UI.drag.kind === 'pan') ? 'grabbing' : UI.space ? 'grab'
-    : t === 'select' ? 'default' : t === 'underlay' ? 'move' : 'crosshair';
+    : t === 'select' ? 'default' : (t === 'underlay' || t === 'backdrop') ? 'move' : 'crosshair';
 }
 
 function finishDrawing() {
@@ -770,6 +831,13 @@ function draw() {
   wt();
   drawGrid(k);
 
+  const bd = P.level.look && P.level.look.backdrop, bim = AIMG.backdrop;
+  if (bd && bim && UI.showBackdrop) {
+    ctx.globalAlpha = bd.opacity == null ? 1 : bd.opacity;
+    ctx.drawImage(bim, bd.x, bd.y, bd.w, bd.h);
+    ctx.globalAlpha = 1;
+    if (UI.tool === 'backdrop') { ctx.strokeStyle = '#CE2A7C'; ctx.lineWidth = px(2); ctx.strokeRect(bd.x, bd.y, bd.w, bd.h); }
+  }
   if (UL.img && UL.visible) {
     ctx.globalAlpha = UL.opacity; ctx.imageSmoothingEnabled = true;
     ctx.drawImage(UL.img, UL.x, UL.y, UL.img.naturalWidth * UL.scale, UL.img.naturalHeight * UL.scale);
@@ -1360,8 +1428,92 @@ function renderUnderlay() {
       h('button', { onclick: () => { const cx = view.x, cy = view.y; UL.x = cx - UL.img.naturalWidth * UL.scale / 2; UL.y = cy - UL.img.naturalHeight * UL.scale / 2; saveUnderlayXf(); need(); } }, 'Centre in view'),
       h('button', { class: 'danger', onclick: () => { UL.img = null; UL.src = null; store.del(KEY.ulSrc); store.del(KEY.ulXf); renderUnderlay(); need(); } }, 'Remove')));
 }
+function renderLook() {
+  const box = $('lookBody'); if (!box) return;
+  box.innerHTML = '';
+  const look = P.level.look;
+  box.append(h('p', { class: 'hintp' }, 'These ship with the level: artwork laid on the ground under the track, and your own road and grass textures.'));
+
+  box.append(h('label', null, 'Backdrop'));
+  const b = look.backdrop, has = !!(b && ASSETS.backdrop);
+  box.append(h('div', { class: 'row', style: 'margin-top:0' },
+    h('button', { class: has ? null : 'primary', onclick: () => { lookTarget = 'backdrop'; $('fLook').click(); } }, has ? 'Replace image' : 'Load image / PDF'),
+    UL.img ? h('button', { onclick: underlayToBackdrop, title: 'Keep the tracing image, exactly where it is, as the level backdrop' }, 'Use the underlay') : null));
+  if (has) {
+    if (AIMG.backdrop) box.append(h('img', { src: AIMG.backdrop.src, class: 'swatch wide', alt: 'backdrop' }));
+    const vis = h('input', { type: 'checkbox', checked: UI.showBackdrop });
+    vis.onchange = () => { UI.showBackdrop = vis.checked; need(); };
+    const op = h('input', { type: 'range', min: 0.05, max: 1, step: 0.05, value: String(b.opacity == null ? 1 : b.opacity) });
+    op.addEventListener('pointerdown', () => begin());
+    op.oninput = () => { b.opacity = parseFloat(op.value); liveEdit(); };
+    op.onchange = () => end(false);
+    box.append(
+      h('label', { class: 'chk' }, vis, 'Show in the editor'),
+      h('label', null, 'Opacity'), op,
+      h('div', { class: 'cols2' },
+        field('Width', () => Math.round(b.w), v => resizeBackdrop(v), { min: 100, step: 50 }),
+        h('div', null, h('label', null, 'Height'), h('p', { class: 'hintp' }, String(Math.round(b.h)) + ' (keeps shape)'))),
+      h('div', { class: 'row' },
+        h('button', { onclick: () => setTool('backdrop') }, 'Move it (G)'),
+        h('button', { onclick: () => { mutate(() => fitBackdrop(P.level.look.backdrop)); renderLook(); } }, 'Fit to track'),
+        h('button', { class: 'danger', onclick: () => { mutate(() => look.backdrop = null); dropAsset('backdrop'); renderLook(); } }, 'Remove')));
+  }
+
+  for (const [k, name, def] of [['road', 'Road texture', 620], ['grass', 'Grass texture', 900]]) {
+    const t = look[k], has2 = !!(t && ASSETS[k]);
+    box.append(h('label', null, name));
+    const r = h('div', { class: 'row', style: 'margin-top:0' });
+    if (has2 && AIMG[k]) r.append(h('img', { src: AIMG[k].src, class: 'swatch', alt: k }));
+    r.append(h('button', { onclick: () => { lookTarget = k; $('fLook').click(); } }, has2 ? 'Replace' : 'Load tile image'));
+    if (has2) r.append(h('button', { class: 'danger', onclick: () => { mutate(() => look[k] = null); dropAsset(k); renderLook(); } }, 'Back to default'));
+    box.append(r);
+    if (has2) box.append(field('Tile size in world units (default ' + def + ')', () => t.tile, v => t.tile = v, { min: 50, step: 10 }));
+  }
+  box.append(h('p', { class: 'hintp' }, 'Textures repeat, so use seamless tiles. They show in test play; the editor keeps its plain road colours so the zones stay readable.'));
+}
+let lookTarget = 'backdrop';
+function resizeBackdrop(w) {
+  const b = P.level.look.backdrop, cx = b.x + b.w / 2, cy = b.y + b.h / 2, k = b.h / b.w;
+  b.w = r1(w); b.h = r1(w * k); b.x = r1(cx - b.w / 2); b.y = r1(cy - b.h / 2);
+}
+// centre the backdrop on the track, a little wider than it, keeping its shape
+function fitBackdrop(b, aspect) {
+  const bb = levelBounds(), k = aspect || b.h / b.w;
+  b.w = r1((bb.x1 - bb.x0) * 1.15); b.h = r1(b.w * k);
+  b.x = r1((bb.x0 + bb.x1) / 2 - b.w / 2); b.y = r1((bb.y0 + bb.y1) / 2 - b.h / 2);
+}
+function underlayToBackdrop() {
+  if (!UL.img) return;
+  putAsset('backdrop', UL.src);
+  mutate(() => P.level.look.backdrop = {
+    x: r1(UL.x), y: r1(UL.y), w: r1(UL.img.naturalWidth * UL.scale), h: r1(UL.img.naturalHeight * UL.scale), opacity: 1 });
+  UL.visible = false; saveUnderlayXf(); renderUnderlay(); renderLook();
+  toast('The underlay is now the level backdrop, exactly where it was (the tracing copy is hidden). Tip: a transparent PNG or a PDF looks best on the grass.');
+}
+async function lookFromFile(file) {
+  const id = lookTarget;
+  try {
+    const src = await imageFromFile(file, id === 'backdrop' ? 3000 : 1024, false);
+    const im = await loadImg(src);
+    putAsset(id, src);
+    if (id === 'backdrop') {
+      const aspect = im.naturalHeight / Math.max(1, im.naturalWidth);
+      mutate(() => {
+        const old = P.level.look.backdrop;
+        if (old) { old.h = r1(old.w * aspect); }     // a replacement keeps its place and width
+        else { const b = { x: 0, y: 0, w: 1, h: aspect, opacity: 1 }; fitBackdrop(b, aspect); P.level.look.backdrop = b; }
+      });
+      setTool('backdrop');
+      toast('Backdrop loaded and fitted to the track. Drag it with the Backdrop tool (G); set width and opacity in the Look panel.');
+    } else {
+      mutate(() => P.level.look[id] = { tile: (P.level.look[id] && P.level.look[id].tile) || TILE[id] });
+      toast((id === 'road' ? 'Road' : 'Grass') + ' texture loaded — Test play to see it.');
+    }
+    renderLook();
+  } catch (e) { toast('Couldn\'t load that image: ' + (e.message || e), true); }
+}
 function updateDocName() { $('docName').textContent = P.level.title + '  ·  ' + P.level.id; }
-function renderAll() { renderTool(); renderSel(); renderCheck(); renderLevel(); renderUnderlay(); updateDocName(); updateCheckStatus();
+function renderAll() { renderTool(); renderSel(); renderCheck(); renderLevel(); renderLook(); renderUnderlay(); updateDocName(); updateCheckStatus();
   $('bUndo').disabled = !HIST.undo.length; $('bRedo').disabled = !HIST.redo.length; }
 
 // ---------- thumbnails (the arcade card image) ----------
@@ -1375,6 +1527,13 @@ function makeThumb(lvl) {
   const s = Math.min((W0 - 2 * pad) / bw, (H0 - 2 * pad) / bh);
   const ox = (W0 - bw * s) / 2 - b.x0 * s, oy = (H0 - bh * s) / 2 - b.y0 * s;
   const X = x => ox + x * s, Y = y => oy + y * s;
+  const bd = lvl.backdrop, bim = AIMG.backdrop;
+  if (bd && bim) {
+    g.save(); g.setTransform(s, 0, 0, s, ox, oy);
+    g.globalAlpha = bd.opacity == null ? 1 : bd.opacity;
+    g.drawImage(bim, bd.x, bd.y, bd.w, bd.h);
+    g.restore();
+  }
   g.save(); g.setTransform(s, 0, 0, s, ox, oy);
   g.strokeStyle = '#3a404a'; g.lineCap = 'round'; g.lineJoin = 'round';
   for (const r of lvl.roads) { g.lineWidth = r.w; g.stroke(polyPath(r.p)); }
@@ -1412,8 +1571,8 @@ function exportLevel() {
 }
 function testPlay() {
   rebuild();
-  const d = JSON.parse(JSON.stringify(compile()));
-  if (!store.set(KEY.draft, JSON.stringify(d))) { toast('Couldn\'t hand the level to the game — browser storage is blocked or full.', true); return; }
+  const d = JSON.parse(JSON.stringify(compile(true)));
+  if (!store.set(KEY.draft, JSON.stringify(d))) { toast('Couldn\'t hand the level to the game — browser storage is full. Try a smaller backdrop image.', true); return; }
   const w = window.open('../games/racer/index.html?level=draft', 'rexyRacerTest');
   if (!w) toast('The test tab was blocked — allow pop-ups for this page.', true);
 }
@@ -1464,6 +1623,7 @@ $('fImport').onchange = async () => {
   try { loadDoc(JSON.parse(await f.text())); toast('Opened ' + f.name); }
   catch (e) { toast('Couldn\'t read that file: ' + (e.message || e), true); }
 };
+$('fLook').onchange = () => { const f = $('fLook').files[0]; $('fLook').value = ''; if (f) lookFromFile(f); };
 $('fUnder').onchange = () => { const f = $('fUnder').files[0]; $('fUnder').value = ''; if (f) underlayFromFile(f); };
 $('bUndo').onclick = undo; $('bRedo').onclick = redo;
 $('bExport').onclick = exportLevel; $('bTest').onclick = testPlay;
@@ -1485,6 +1645,7 @@ try {
   const xf = JSON.parse(store.get(KEY.ulXf) || 'null'), src = store.get(KEY.ulSrc);
   if (xf && src) { Object.assign(UL, xf); setUnderlay(src, xf.name, false); }
 } catch (e) {}
+for (const id of ASSET_IDS) { const s = store.get(ASSET_KEY + id); if (s) putAsset(id, s); }
 setTool('select');
 renderAll();
 requestAnimationFrame(() => { resize(); fitView(); });
