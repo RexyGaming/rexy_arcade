@@ -237,6 +237,7 @@ const store={
 };
 
 const IMG={};
+let STK={};        // sticker images, by id
 let asphaltPat=null, grassPat=null;
 const AUD={};
 let soundOn=(store.get('rexySound','1')!=='0');
@@ -745,6 +746,7 @@ function draw(){
     ctx.drawImage(bi,bd.x,bd.y,bd.w,bd.h);
     ctx.globalAlpha=1;
   }
+  drawStickers('ground');
   // the tolerance shoulder, straddling every edge
   strokeRoads(CFG.edgePad*2,'#1b212a');
 
@@ -767,6 +769,7 @@ function draw(){
     ctx.setLineDash([]);
   }
   if(KERB_PATH){ ctx.strokeStyle='rgba(160,175,195,.35)'; ctx.lineWidth=7; ctx.stroke(KERB_PATH); }
+  drawStickers('road');
   ctx.setTransform(1,0,0,1,0,0);
 
   drawFurniture();
@@ -774,6 +777,7 @@ function draw(){
   drawFinishLine();
   drawStart();
   drawCoins();
+  worldTransform(); drawStickers('top'); ctx.setTransform(1,0,0,1,0,0);
   drawPlayer();
   drawLights();
   drawMinimap();
@@ -784,6 +788,23 @@ function draw(){
   $('tBon').textContent='-'+S.bonus.toFixed(2);
   $('tBon').style.opacity=S.bonus>0?1:.35;
   $('tTake').textContent=(S.deaths+1);
+}
+
+// Decorative images placed in the level editor, drawn in world space on one of
+// three layers: the grass, the road surface, or on top. Clappa drives over them.
+function drawStickers(layer){
+  const L=TRACK.stickers;
+  if(!L||!L.length) return;
+  for(const s of L){
+    if((s.layer||'ground')!==layer) continue;
+    const im=STK[s.img];
+    if(!im||!im.complete||!im.naturalWidth) continue;
+    ctx.save();
+    ctx.translate(s.x,s.y); ctx.rotate((s.a||0)*Math.PI/180);
+    ctx.globalAlpha=s.opacity==null?1:s.opacity;
+    ctx.drawImage(im,-s.w/2,-s.h/2,s.w,s.h);
+    ctx.restore();
+  }
 }
 
 // A straight chequered strip across the road: 50-unit squares, two along the
@@ -1070,6 +1091,8 @@ function loadAssets(){
     i.src=custom[k]||ART[k];
   }
   if(TRACK.backdrop && TRACK.backdrop.src){ const b=new Image(); b.src=levelSrc(TRACK.backdrop.src); IMG.backdrop=b; }
+  const imgs=TRACK.images||{};
+  for(const id in imgs){ const b=new Image(); b.src=levelSrc(imgs[id]); STK[id]=b; }
   for(const k in SND){ const a=new Audio(SND[k]); a.preload='auto'; AUD[k]=a; }
 }
 

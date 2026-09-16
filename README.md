@@ -59,9 +59,11 @@ To publish an exported level:
 python tools/add_level.py path/to/<id>.json
 ```
 
-A level can also carry its own look: a backdrop image laid under the track and
-custom road/grass tile textures (the editor's Look panel). Exports carry them
-inline; `add_level.py` saves them to `games/racer/levels/<id>/`.
+A level can also carry its own look: a backdrop image laid under the track,
+custom road/grass tile textures (the editor's Look panel), and stickers —
+decorative images placed anywhere on the grass, the road, or on top (the
+Sticker tool). Exports carry the images inline; `add_level.py` saves them to
+`games/racer/levels/<id>/` and clears out ones the level no longer uses.
 
 That writes the level file, the card thumbnail and the `games.json` entry. Scores
 are keyed by the level id, so never rename the id of a level that has scores.

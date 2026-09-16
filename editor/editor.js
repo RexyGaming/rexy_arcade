@@ -37,7 +37,7 @@ function blankProject() {
       tips: [], badges: ['rexy', 'aco', 'tinytape'], startStyle: 'dot', boardKey: null,
       coinR: 55, coinBonus: 0.5, edgePad: 50, gold: 30, silver: 45, bronze: 60, kerbs: [],
       arcade: { description: '', credit: '' },
-      look: { backdrop: null, road: null, grass: null }
+      look: { backdrop: null, road: null, grass: null, stickers: [] }
     },
     roads: [], obstacles: [], coins: [], checkpoints: [],
     start: [0, 0], finish: [2400, 0], finishYaw: 0
@@ -53,7 +53,7 @@ function projectFromLevel(doc, entry) {
     if (!lv.arcade.description) lv.arcade.description = entry.description || '';
     if (!lv.arcade.credit) lv.arcade.credit = entry.credit || '';
   }
-  lv.look = { backdrop: null, road: null, grass: null };
+  lv.look = { backdrop: null, road: null, grass: null, stickers: [] };
   clearAssets();
   const bd = doc.backdrop;
   if (bd && bd.src) {
@@ -63,6 +63,9 @@ function projectFromLevel(doc, entry) {
   const tx = doc.textures || {};
   for (const k of ['road', 'grass'])
     if (tx[k] && tx[k].src) { putAsset(k, tx[k].src); lv.look[k] = { tile: tx[k].tile || TILE[k] }; }
+  const imgs = doc.images || {};
+  for (const id in imgs) putAsset(id, imgs[id]);
+  lv.look.stickers = (doc.stickers || []).filter(s => imgs[s.img]).map(s => clone(s));
   p.roads = (doc.editor && Array.isArray(doc.editor.roads))
     ? clone(doc.editor.roads)
     : N.roads.map(r => ({ kind: 'poly', w: r.w, ctrl: clone(r.p) }));
@@ -75,7 +78,7 @@ function loadProject() {
     const s = store.get(KEY.project);
     if (s) {
       const p = JSON.parse(s);
-      if (p && p.level && Array.isArray(p.roads)) { p.level.look = p.level.look || { backdrop: null, road: null, grass: null }; return p; }
+      if (p && p.level && Array.isArray(p.roads)) { p.level.look = p.level.look || { backdrop: null, road: null, grass: null }; p.level.look.stickers = p.level.look.stickers || []; return p; }
     }
   } catch (e) {}
   return blankProject();
@@ -86,7 +89,7 @@ let dirtySinceExport = false;
 // ---------- level images: backdrop, road and grass textures ----------
 // Kept out of the project JSON (each can be a big data URL), so undo snapshots stay
 // small. A value is a data: URL, or a path relative to games/racer/levels/.
-const ASSET_KEY = 'rexyEditorAsset:', ASSET_IDS = ['backdrop', 'road', 'grass'];
+const ASSET_KEY = 'rexyEditorAsset:';
 const TILE = { road: 620, grass: 900 };
 const ASSETS = {}, AIMG = {};
 function assetUrl(id) {
@@ -104,7 +107,22 @@ function putAsset(id, src) {
   im.src = assetUrl(id);
 }
 function dropAsset(id) { delete ASSETS[id]; delete AIMG[id]; store.del(ASSET_KEY + id); }
-function clearAssets() { for (const id of ASSET_IDS) dropAsset(id); }
+function storedAssetIds() {
+  const ids = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(ASSET_KEY)) ids.push(k.slice(ASSET_KEY.length));
+    }
+  } catch (e) {}
+  return ids;
+}
+function clearAssets() {
+  for (const id of Object.keys(ASSETS)) dropAsset(id);
+  for (const id of storedAssetIds()) store.del(ASSET_KEY + id);
+}
+// sticker images get ids starting "st"; the fixed slots are backdrop, road and grass
+const stickerIds = () => Object.keys(ASSETS).filter(id => id.startsWith('st'));
 const loadImg = src => new Promise((res, rej) => {
   const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('unreadable image')); i.src = src;
 });
@@ -128,6 +146,13 @@ function compile(withAssets) {
     const tx = {};
     for (const k of ['road', 'grass']) if (look[k] && ASSETS[k]) tx[k] = { src: ASSETS[k], tile: look[k].tile || TILE[k] };
     if (Object.keys(tx).length) out.textures = tx;
+    // stickers, plus only the images they actually use
+    const st = (look.stickers || []).filter(s => ASSETS[s.img]);
+    if (st.length) {
+      out.images = {};
+      for (const s of st) out.images[s.img] = ASSETS[s.img];
+      out.stickers = st;
+    }
   }
   return out;
 }
@@ -205,6 +230,7 @@ const ICON = {
   checkpoint: '<circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2.4"/><circle cx="10" cy="10" r="1.8" fill="currentColor"/>',
   start: '<circle cx="10" cy="10" r="7" fill="#ce2a7c"/>',
   finish: '<rect x="4" y="2" width="12" height="16" fill="#eee"/><path d="M4 2h6v4H4zM10 6h6v4h-6zM4 10h6v4H4zM10 14h6v4h-6z" fill="#11151b"/>',
+  sticker: '<path d="M4 3h9l4 4v10H4z" fill="#F6BE1A" opacity=".85"/><path d="M13 3v4h4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8.5" cy="10.5" r="2.2" fill="#131822"/>',
   backdrop: '<rect x="2" y="3" width="16" height="14" rx="2" fill="#CE2A7C" opacity=".55"/><path d="M4 14c3-7 6 1 12-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
   underlay: '<rect x="2.5" y="4" width="15" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 14l4-5 3 3 2-2 3 4z" fill="currentColor"/>'
 };
@@ -223,13 +249,14 @@ const TOOLS = [
   { id: 'start', key: 'S', name: 'Start', help: 'Click to move the start.' },
   { id: 'finish', key: 'F', name: 'Finish', help: 'Click to move the finish. The strip lines itself up with the road; <b>Q</b>/<b>E</b> to adjust.' },
   { sep: true },
+  { id: 'sticker', key: 'I', name: 'Sticker', help: 'Add an image (logo, sign, arrow, sponsor…), pick it, then click the map to stamp it — as many copies as you like. Click a sticker to select and drag it; drag its handle or use <b>Q</b>/<b>E</b> to turn it. Stickers are decoration only: Clappa drives straight over them.' },
   { id: 'backdrop', key: 'G', name: 'Backdrop', help: 'Drag the level backdrop into place. Load it, and set its size and opacity, in the Look panel.' },
   { id: 'underlay', key: 'U', name: 'Underlay', help: 'Drag the tracing image into place. Load one, and set its size and opacity, in the Underlay panel.' }
 ];
 const UI = {
   tool: 'select', sel: null, drawing: false, drag: null, space: false,
   roadW: 300, pieceLen: 600, pieceR: 600, pieceDeg: 90,
-  heat: true, line: true, probe: true, auto: true, showBackdrop: true,
+  heat: true, line: true, probe: true, auto: true, showBackdrop: true, stickerImg: null, stickerLayer: 'ground',
   mouse: { in: false, wx: 0, wy: 0 }
 };
 
@@ -389,6 +416,11 @@ function rotHandle(s) {
     const a = (o.a || 0) * Math.PI / 180, d = o.hx + px(28);
     return { x: o.x + Math.cos(a) * d, y: o.y + Math.sin(a) * d, cx: o.x, cy: o.y };
   }
+  if (s.t === 'stk') {
+    const st = P.level.look.stickers[s.i]; if (!st) return null;
+    const a = (st.a || 0) * Math.PI / 180, d = st.w / 2 + px(28);
+    return { x: st.x + Math.cos(a) * d, y: st.y + Math.sin(a) * d, cx: st.x, cy: st.y };
+  }
   if (s.t === 'finish') {
     const a = (P.finishYaw || 0) * Math.PI / 180, d = 50 + px(30);
     return { x: P.finish[0] + Math.cos(a) * d, y: P.finish[1] + Math.sin(a) * d, cx: P.finish[0], cy: P.finish[1] };
@@ -401,6 +433,7 @@ function hit(wx, wy) {
   const tol = px(7), s = UI.sel;
   const rh = rotHandle(s);
   if (rh && Math.hypot(rh.x - wx, rh.y - wy) < px(9)) return { t: 'rot' };
+  if (UI.tool === 'sticker') { const st = hitSticker(wx, wy); if (st) return st; }
   if (s && s.t === 'road') {
     const r = P.roads[s.i];
     if (r && r.kind === 'pieces') {
@@ -442,8 +475,24 @@ function hit(wx, wy) {
   }
   return null;
 }
+// stickers are only picked with the Sticker tool, so big ones never get in the way
+const LAYER_RANK = { ground: 0, road: 1, top: 2 };
+function stickerOrder() {
+  const L = P.level.look.stickers || [];
+  return L.map((s, i) => i).sort((a, b) => (LAYER_RANK[L[a].layer] || 0) - (LAYER_RANK[L[b].layer] || 0) || a - b);
+}
+function hitSticker(wx, wy) {
+  const L = P.level.look.stickers || [], order = stickerOrder();
+  for (let n = order.length - 1; n >= 0; n--) {
+    const i = order[n], s = L[i], a = (s.a || 0) * Math.PI / 180, dx = wx - s.x, dy = wy - s.y;
+    const lx = Math.abs(dx * Math.cos(a) + dy * Math.sin(a)), ly = Math.abs(-dx * Math.sin(a) + dy * Math.cos(a));
+    if (lx <= s.w / 2 && ly <= s.h / 2) return { t: 'stk', i };
+  }
+  return null;
+}
 function objPos(s) {
   switch (s.t) {
+    case 'stk': return [P.level.look.stickers[s.i].x, P.level.look.stickers[s.i].y];
     case 'coin': return [P.coins[s.i].x, P.coins[s.i].y];
     case 'obs': return [P.obstacles[s.i].x, P.obstacles[s.i].y];
     case 'cp': return P.checkpoints[s.i];
@@ -455,6 +504,7 @@ function objPos(s) {
 function setObjPos(s, x, y) {
   x = r1(x); y = r1(y);
   switch (s.t) {
+    case 'stk': P.level.look.stickers[s.i].x = x; P.level.look.stickers[s.i].y = y; break;
     case 'coin': P.coins[s.i].x = x; P.coins[s.i].y = y; break;
     case 'obs': P.obstacles[s.i].x = x; P.obstacles[s.i].y = y; break;
     case 'cp': P.checkpoints[s.i] = [x, y]; break;
@@ -629,6 +679,20 @@ const DOWN = {
     const at = WORLD.roadAt(wx, wy); if (at) P.finishYaw = normDeg(at.deg);
     rebuild(); select(s); UI.drag = { kind: 'finishPlace', s };
   },
+  sticker(wx, wy) {
+    const hh = hit(wx, wy);
+    if (hh && hh.t === 'rot') { begin(); UI.drag = { kind: 'rot' }; return; }
+    if (hh && hh.t === 'stk') { select(hh); startMove(hh, wx, wy); return; }
+    const id = UI.stickerImg;
+    if (!id || !ASSETS[id]) { lookTarget = 'sticker'; $('fLook').click(); return; }
+    const im = AIMG[id], k = im ? im.naturalHeight / Math.max(1, im.naturalWidth) : 1;
+    begin();
+    P.level.look.stickers.push({ img: id, x: r1(wx), y: r1(wy), w: 400, h: r1(400 * k), a: 0, opacity: 1, layer: UI.stickerLayer });
+    rebuild();
+    const s = { t: 'stk', i: P.level.look.stickers.length - 1 };
+    UI.sel = s; renderSel(); renderTool();
+    UI.drag = { kind: 'move', s, ox: 0, oy: 0 };
+  },
   backdrop(wx, wy) {
     const b = P.level.look.backdrop;
     if (!b || !ASSETS.backdrop) { toast('Load a backdrop in the Look panel first.'); return; }
@@ -674,7 +738,9 @@ function dragMove(d, wx, wy, e) {
       const rh = rotHandle(UI.sel); if (!rh) break;
       let deg = Math.atan2(wy - rh.cy, wx - rh.cx) * 180 / Math.PI;
       if (!e.shiftKey) deg = Math.round(deg / 5) * 5;
-      if (UI.sel.t === 'obs') P.obstacles[UI.sel.i].a = normDeg(deg); else P.finishYaw = normDeg(deg);
+      if (UI.sel.t === 'obs') P.obstacles[UI.sel.i].a = normDeg(deg);
+      else if (UI.sel.t === 'stk') P.level.look.stickers[UI.sel.i].a = normDeg(deg);
+      else P.finishYaw = normDeg(deg);
       rebuild(); break;
     }
     case 'bd': {
@@ -715,17 +781,20 @@ function deleteSel() {
   } else if (s.t === 'obs') mutate(() => P.obstacles.splice(s.i, 1));
   else if (s.t === 'coin') mutate(() => P.coins.splice(s.i, 1));
   else if (s.t === 'cp') mutate(() => P.checkpoints.splice(s.i, 1));
+  else if (s.t === 'stk') mutate(() => P.level.look.stickers.splice(s.i, 1));
   else { toast('The start and finish can be moved but not deleted.'); return; }
   select(null);
 }
 function duplicateSel() {
   const s = UI.sel; if (!s) return;
   if (s.t === 'obs') { mutate(() => { const o = clone(P.obstacles[s.i]); o.x += 80; o.y += 80; P.obstacles.push(o); }); select({ t: 'obs', i: P.obstacles.length - 1 }); }
+  else if (s.t === 'stk') { mutate(() => { const c = clone(P.level.look.stickers[s.i]); c.x += 80; c.y += 80; P.level.look.stickers.push(c); }); select({ t: 'stk', i: P.level.look.stickers.length - 1 }); }
   else if (s.t === 'coin') { mutate(() => { const c = clone(P.coins[s.i]); c.x += 80; c.y += 80; P.coins.push(c); }); select({ t: 'coin', i: P.coins.length - 1 }); }
 }
 function rotateSel(dir, fine) {
   const s = UI.sel, step = (fine ? 5 : 15) * dir; if (!s) return;
   if (s.t === 'obs') mutate(() => { const o = P.obstacles[s.i]; if (o.h != null) return; o.a = normDeg((o.a || 0) + step); });
+  else if (s.t === 'stk') mutate(() => { const st = P.level.look.stickers[s.i]; st.a = normDeg((st.a || 0) + step); });
   else if (s.t === 'finish') mutate(() => { P.finishYaw = normDeg((P.finishYaw || 0) + step); });
   else if (s.t === 'road' && P.roads[s.i].kind === 'pieces') mutate(() => { const o = P.roads[s.i].origin; o.deg = normDeg(o.deg + step); });
 }
@@ -838,6 +907,7 @@ function draw() {
     ctx.globalAlpha = 1;
     if (UI.tool === 'backdrop') { ctx.strokeStyle = '#CE2A7C'; ctx.lineWidth = px(2); ctx.strokeRect(bd.x, bd.y, bd.w, bd.h); }
   }
+  drawStickers('ground');
   if (UL.img && UL.visible) {
     ctx.globalAlpha = UL.opacity; ctx.imageSmoothingEnabled = true;
     ctx.drawImage(UL.img, UL.x, UL.y, UL.img.naturalWidth * UL.scale, UL.img.naturalHeight * UL.scale);
@@ -859,6 +929,7 @@ function draw() {
   CR.forEach((r, i) => { if (r) ctx.stroke(paths[i]); });
   ctx.setLineDash([]);
   ctx.globalAlpha = 1;
+  drawStickers('road');
 
   drawHeat();
   if (UI.line && CHECK && CHECK.line) {
@@ -874,10 +945,30 @@ function draw() {
   drawStart();
   drawObstacles();
   drawCoins();
+  drawStickers('top');
   drawRoadHandles();
   drawSelection();
   drawProbe();
   drawLabels();
+}
+function drawStickers(layer) {
+  (P.level.look.stickers || []).forEach((s, i) => {
+    if ((s.layer || 'ground') !== layer) return;
+    const im = AIMG[s.img];
+    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate((s.a || 0) * Math.PI / 180);
+    if (im) {
+      ctx.globalAlpha = s.opacity == null ? 1 : s.opacity;
+      ctx.drawImage(im, -s.w / 2, -s.h / 2, s.w, s.h);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.strokeStyle = 'rgba(246,190,26,.6)'; ctx.lineWidth = px(1); ctx.setLineDash([px(4), px(4)]);
+      ctx.strokeRect(-s.w / 2, -s.h / 2, s.w, s.h); ctx.setLineDash([]);
+    }
+    if (UI.tool === 'sticker' && !(UI.sel && UI.sel.t === 'stk' && UI.sel.i === i)) {
+      ctx.strokeStyle = 'rgba(246,190,26,.35)'; ctx.lineWidth = px(1); ctx.strokeRect(-s.w / 2, -s.h / 2, s.w, s.h);
+    }
+    ctx.restore();
+  });
 }
 function drawGrid(k) {
   const step = k * 500 > 18 * DPR ? 500 : k * 2500 > 18 * DPR ? 2500 : 12500;
@@ -1010,6 +1101,11 @@ function drawSelection() {
     ctx.save(); ctx.translate(o.x, o.y); ctx.rotate((o.a || 0) * Math.PI / 180);
     if (o.h != null) { ctx.beginPath(); ctx.arc(0, 0, o.h + px(5), 0, Math.PI * 2); ctx.stroke(); }
     else ctx.strokeRect(-o.hx - px(5), -o.hy - px(5), o.hx * 2 + px(10), o.hy * 2 + px(10));
+    ctx.restore();
+  } else if (s.t === 'stk') {
+    const st = P.level.look.stickers[s.i]; if (!st) return;
+    ctx.save(); ctx.translate(st.x, st.y); ctx.rotate((st.a || 0) * Math.PI / 180);
+    ctx.strokeRect(-st.w / 2 - px(4), -st.h / 2 - px(4), st.w + px(8), st.h + px(8));
     ctx.restore();
   } else if (s.t === 'coin') {
     const c = P.coins[s.i]; if (!c) return;
@@ -1212,6 +1308,33 @@ function renderTool() {
       h('button', { onclick: popPiece, disabled: !ok || !r.pieces.length, title: 'Backspace' }, 'Undo piece')));
     box.append(h('p', { class: 'hintp' }, 'Turn radius is measured to the road centre. Keep it above half the road width (150 for a 300 road) or the inside of the bend folds over.'));
   }
+  if (UI.tool === 'sticker') {
+    const ids = stickerIds();
+    if (!UI.stickerImg || !ASSETS[UI.stickerImg]) UI.stickerImg = ids[ids.length - 1] || null;
+    const lib = h('div', { class: 'stickerLib' });
+    for (const id of ids) {
+      const used = (P.level.look.stickers || []).filter(s => s.img === id).length;
+      lib.append(h('div', { class: 'stk' + (id === UI.stickerImg ? ' on' : ''), title: used + ' placed',
+          onclick: () => { UI.stickerImg = id; renderTool(); } },
+        AIMG[id] ? h('img', { src: AIMG[id].src, alt: '' }) : '…',
+        h('button', { class: 'x', title: 'Remove this image', onclick: e => {
+          e.stopPropagation();
+          if (used && !confirm('Remove this image and the ' + used + ' sticker' + (used > 1 ? 's' : '') + ' using it?')) return;
+          mutate(() => P.level.look.stickers = P.level.look.stickers.filter(s => s.img !== id));
+          dropAsset(id);
+          if (UI.stickerImg === id) UI.stickerImg = null;
+          select(null); renderTool(); need();
+        } }, '✕')));
+    }
+    const layerSel = h('select', { onchange: () => { UI.stickerLayer = layerSel.value; } },
+      [['ground', 'On the grass'], ['road', 'On the road'], ['top', 'On top']]
+        .map(([v, t]) => h('option', { value: v, selected: UI.stickerLayer === v }, t)));
+    box.append(
+      h('label', null, ids.length ? 'Images — pick one, then click the map' : 'Images'),
+      ids.length ? lib : h('p', { class: 'hintp' }, 'No images yet.'),
+      h('div', { class: 'row' }, h('button', { class: ids.length ? null : 'primary', onclick: () => { lookTarget = 'sticker'; $('fLook').click(); } }, 'Add image / PDF')),
+      h('div', { class: 'cols2' }, h('div', null, h('label', null, 'New stickers go'), layerSel)));
+  }
   if (UI.tool === 'checkpoint') {
     box.append(h('div', { class: 'row' },
       h('button', { onclick: autoCheckpoints }, 'Auto-place along roads'),
@@ -1301,6 +1424,35 @@ function renderSel() {
       box.append(rep);
     }
     box.append(h('div', { class: 'row' }, h('button', { onclick: duplicateSel }, 'Duplicate'), del()));
+    return;
+  }
+  if (s.t === 'stk') {
+    const L = P.level.look.stickers, st = L[s.i];
+    if (!st) { UI.sel = null; return renderSel(); }
+    const layer = h('select', { onchange: () => mutate(() => st.layer = layer.value) },
+      [['ground', 'On the grass (under the road)'], ['road', 'On the road (under furniture)'], ['top', 'On top of everything']]
+        .map(([v, t]) => h('option', { value: v, selected: (st.layer || 'ground') === v }, t)));
+    const op = h('input', { type: 'range', min: 0.05, max: 1, step: 0.05, value: String(st.opacity == null ? 1 : st.opacity) });
+    op.addEventListener('pointerdown', () => begin());
+    op.oninput = () => { st.opacity = parseFloat(op.value); liveEdit(); };
+    op.onchange = () => end(false);
+    const move = d => mutate(() => {
+      const j = clamp(s.i + d, 0, L.length - 1);
+      if (j === s.i) return;
+      const [x] = L.splice(s.i, 1); L.splice(j, 0, x); UI.sel = { t: 'stk', i: j };
+    });
+    box.append(h('div', { class: 'toolname' }, 'Sticker ' + (s.i + 1)),
+      AIMG[st.img] ? h('img', { src: AIMG[st.img].src, class: 'swatch wide', alt: 'sticker' })
+                   : h('p', { class: 'hintp danger' }, 'Image missing — add it again.'),
+      h('div', { class: 'cols2' },
+        field('Width (keeps shape)', () => Math.round(st.w), v => { const k = st.h / st.w; st.w = r1(v); st.h = r1(v * k); }, { min: 10, step: 10 }),
+        field('Angle °', () => st.a || 0, v => st.a = normDeg(v), { step: 5 })),
+      h('label', null, 'Layer'), layer,
+      h('label', null, 'Opacity'), op,
+      h('div', { class: 'row' },
+        h('button', { onclick: () => move(-1), title: 'Draw it behind other stickers on the same layer' }, 'Send back'),
+        h('button', { onclick: () => move(1), title: 'Draw it in front of other stickers on the same layer' }, 'Bring forward'),
+        h('button', { onclick: duplicateSel }, 'Duplicate'), del()));
     return;
   }
   if (s.t === 'cp') {
@@ -1469,6 +1621,10 @@ function renderLook() {
     box.append(r);
     if (has2) box.append(field('Tile size in world units (default ' + def + ')', () => t.tile, v => t.tile = v, { min: 50, step: 10 }));
   }
+  box.append(h('label', null, 'Stickers'),
+    h('div', { class: 'row', style: 'margin-top:0' },
+      h('button', { onclick: () => setTool('sticker') }, 'Sticker tool (I)'),
+      h('span', { class: 'hintp' }, (P.level.look.stickers || []).length + ' placed · ' + stickerIds().length + ' images')));
   box.append(h('p', { class: 'hintp' }, 'Textures repeat, so use seamless tiles. They show in test play; the editor keeps its plain road colours so the zones stay readable.'));
 }
 let lookTarget = 'backdrop';
@@ -1493,8 +1649,16 @@ function underlayToBackdrop() {
 async function lookFromFile(file) {
   const id = lookTarget;
   try {
-    const src = await imageFromFile(file, id === 'backdrop' ? 3000 : 1024, false);
+    const src = await imageFromFile(file, id === 'backdrop' ? 3000 : id === 'sticker' ? 1600 : 1024, false);
     const im = await loadImg(src);
+    if (id === 'sticker') {
+      const sid = 'st' + Date.now().toString(36);
+      putAsset(sid, src); AIMG[sid] = im;
+      UI.stickerImg = sid;
+      setTool('sticker');
+      toast('Image added — click the map to stamp it. Click a sticker to move it; drag its handle to turn it.');
+      return;
+    }
     putAsset(id, src);
     if (id === 'backdrop') {
       const aspect = im.naturalHeight / Math.max(1, im.naturalWidth);
@@ -1532,6 +1696,16 @@ function makeThumb(lvl) {
     g.save(); g.setTransform(s, 0, 0, s, ox, oy);
     g.globalAlpha = bd.opacity == null ? 1 : bd.opacity;
     g.drawImage(bim, bd.x, bd.y, bd.w, bd.h);
+    g.restore();
+  }
+  if (lvl.stickers && lvl.stickers.length) {
+    g.save();
+    for (const st of lvl.stickers) {
+      const im = AIMG[st.img]; if (!im) continue;
+      g.setTransform(s, 0, 0, s, ox, oy); g.translate(st.x, st.y); g.rotate((st.a || 0) * Math.PI / 180);
+      g.globalAlpha = st.opacity == null ? 1 : st.opacity;
+      g.drawImage(im, -st.w / 2, -st.h / 2, st.w, st.h);
+    }
     g.restore();
   }
   g.save(); g.setTransform(s, 0, 0, s, ox, oy);
@@ -1645,7 +1819,7 @@ try {
   const xf = JSON.parse(store.get(KEY.ulXf) || 'null'), src = store.get(KEY.ulSrc);
   if (xf && src) { Object.assign(UL, xf); setUnderlay(src, xf.name, false); }
 } catch (e) {}
-for (const id of ASSET_IDS) { const s = store.get(ASSET_KEY + id); if (s) putAsset(id, s); }
+for (const id of storedAssetIds()) { const s = store.get(ASSET_KEY + id); if (s) putAsset(id, s); }
 setTool('select');
 renderAll();
 requestAnimationFrame(() => { resize(); fitView(); });

@@ -25,27 +25,40 @@ def extract_images(doc, lid):
     # Backdrop and textures arrive inline as data: URLs. Save each as a file in
     # games/racer/levels/<id>/ and point the level at it (paths are relative to levels/).
     folder = os.path.join(ROOT, 'games', 'racer', 'levels', lid)
-    slots = []
+    slots = []                            # (file name, dict holding the source, key)
     if doc.get('backdrop'):
-        slots.append(('backdrop', doc['backdrop']))
+        slots.append(('backdrop', doc['backdrop'], 'src'))
     for k, v in (doc.get('textures') or {}).items():
-        slots.append((k, v))
-    saved = []
-    for name, obj in slots:
-        m = re.match(r'data:image/([a-z+]+);base64,(.*)', obj.get('src', ''), re.S)
+        slots.append((k, v, 'src'))
+    images = doc.get('images') or {}      # sticker images, by id
+    for k in images:
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', k) or k in ('backdrop', 'road', 'grass'):
+            sys.exit('bad sticker image id %r' % k)
+        slots.append((k, images, k))
+    saved, keep = [], set()
+    for name, holder, key in slots:
+        src = holder.get(key, '')
+        m = re.match(r'data:image/([a-z+]+);base64,(.*)', src, re.S)
         if not m:
-            continue                      # already a file in the repo
+            if src.startswith(lid + '/'):   # already a file in this level's folder
+                keep.add(src.split('/', 1)[1])
+            continue
         ext = IMG_EXT.get(m.group(1))
         if not ext:
             sys.exit('unsupported %s image type: %s' % (name, m.group(1)))
         os.makedirs(folder, exist_ok=True)
-        for old in os.listdir(folder):    # a replacement may change format
-            if os.path.splitext(old)[0] == name:
-                os.remove(os.path.join(folder, old))
-        with open(os.path.join(folder, name + '.' + ext), 'wb') as f:
+        fname = name + '.' + ext
+        with open(os.path.join(folder, fname), 'wb') as f:
             f.write(base64.b64decode(m.group(2)))
-        obj['src'] = '%s/%s.%s' % (lid, name, ext)
-        saved.append('games/racer/levels/' + obj['src'])
+        holder[key] = '%s/%s' % (lid, fname)
+        keep.add(fname)
+        saved.append('games/racer/levels/' + holder[key])
+    # anything else in the level's folder is left over from an earlier version
+    if os.path.isdir(folder):
+        for old in sorted(os.listdir(folder)):
+            if old not in keep:
+                os.remove(os.path.join(folder, old))
+                saved.append('removed games/racer/levels/%s/%s' % (lid, old))
     return saved
 
 
