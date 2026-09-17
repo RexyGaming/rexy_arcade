@@ -133,6 +133,8 @@
           &mdash; a gravestone marks the spot and the run starts over.</li>
       <li id="coinRule">Eat the <b>gold coins</b> for a time bonus &mdash; if you dare reach for them.</li>
       <li><b>Esc</b> pauses &mdash; resume, restart or quit from there.</li>
+      <li>Clappa moves by exactly what your hand does &mdash; raw counts, no smoothing.
+          Set the feel with <b>wheel sensitivity</b> below.</li>
       <li><b>F</b> toggles full screen at any time.</li>
     </ul>
     <div class="sens">
@@ -140,6 +142,8 @@
       <input type="range" id="sens" min="0.2" max="3" step="0.05" value="1">
     </div>
     <label class="sndrow"><input type="checkbox" id="sndTog" checked> Sound</label>
+    <label class="sndrow" title="Hold the view exactly on Clappa instead of easing after him"><input type="checkbox" id="camTog"> Locked camera</label>
+    <label class="sndrow" title="One mouse count moves Clappa one screen pixel, exactly like your desktop cursor"><input type="checkbox" id="oneTog"> Cursor 1:1</label>
     <div class="row" style="margin-bottom:4px">
       <button class="btn" id="btnStart" disabled>Start</button>
       <button class="btn ghost" id="btnFull">Full screen</button>
@@ -207,7 +211,8 @@ const CFG = {
   moveEps: 1.5,
   baseSpeed: 2.6,
   viewSpan: 1800,
-  maxStep: 600,        // largest believable movement in one event, world units
+  maxStep: 1200,       // biggest single-event move we pass through unchanged, world units
+  warpStep: 4000,      // beyond this it cannot be a hand: a pointer warp, so ignore it
   chompPeriod: 210,    // world units travelled per full chomp cycle
   camLerp: 0.16,
   miniW: 230,
@@ -241,6 +246,9 @@ let STK={};        // sticker images, by id
 let asphaltPat=null, grassPat=null;
 const AUD={};
 let soundOn=(store.get('rexySound','1')!=='0');
+let camLocked=(store.get('rexyCamLock','0')==='1');
+let oneToOne=(store.get('rexyOneToOne','0')==='1');
+let rawInput=false;      // true once the browser gives us unaccelerated deltas
 let lastTick=0;
 function play(k,vol){
   if(!soundOn||!AUD[k]) return;
@@ -416,10 +424,22 @@ $('sens').addEventListener('input',e=>{
   store.set('rexySens',S.sens);
 });
 
+// Ask for RAW movement. By default pointer lock reports deltas after the operating
+// system's pointer acceleration, which scales fast movement and feels like a
+// smoothing filter on the wheels; unadjustedMovement gives the hardware's own counts.
+// Not every browser supports the option, so fall back to a plain lock.
 function tryLock(){
   if(!cv.requestPointerLock) return;
-  try{ const p=cv.requestPointerLock(); if(p&&p.catch) p.catch(()=>{S.lockFailed=true;}); }
-  catch(e){ S.lockFailed=true; }
+  const plain=()=>{
+    rawInput=false;
+    try{ const q=cv.requestPointerLock(); if(q&&q.catch) q.catch(()=>{S.lockFailed=true;}); }
+    catch(e){ S.lockFailed=true; }
+  };
+  try{
+    const p=cv.requestPointerLock({unadjustedMovement:true});
+    if(p&&p.then) p.then(()=>{ rawInput=true; }, plain);
+    else rawInput=true;      // older browsers ignore the option and lock synchronously
+  }catch(e){ plain(); }
 }
 document.addEventListener('pointerlockerror',()=>{ S.lockFailed=true; arm(); });
 document.addEventListener('pointerlockchange',()=>{
@@ -430,27 +450,36 @@ document.addEventListener('pointerlockchange',()=>{
 
 addEventListener('mousemove',e=>{
   if(S.phase==='running'){
-    const dx=(e.movementX||0)*CFG.baseSpeed*S.sens;
-    const dy=(e.movementY||0)*CFG.baseSpeed*S.sens;
+    // Default gain is the event build's 2.6 world units per mouse count. Cursor 1:1
+    // instead moves him one screen pixel per count, whatever the screen, so his
+    // travel matches the desktop pointer exactly.
+    const gain = oneToOne ? DPR/cam.s : CFG.baseSpeed;
+    const dx=(e.movementX||0)*gain*S.sens;
+    const dy=(e.movementY||0)*gain*S.sens;
     if(!dx&&!dy) return;
     // Drop absurd single-event jumps. Pointer lock can emit a huge delta when the
     // underlying cursor warps at a screen edge or the lock re-engages; integrated
     // raw, that teleports the marker into the grass. No hand moves this fast.
-    const mag=Math.hypot(dx,dy);
-    if(mag > CFG.maxStep) return;
+    let mag=Math.hypot(dx,dy);
+    // A pointer warp at a screen edge arrives as one impossible delta; a hard spin
+    // of the wheels arrives as a big but real one. So ignore only the impossible,
+    // and scale the merely huge back rather than dropping the movement entirely.
+    if(mag > CFG.warpStep) return;
+    let mx=dx, my=dy;
+    if(mag > CFG.maxStep){ const k=CFG.maxStep/mag; mx*=k; my*=k; mag=CFG.maxStep; }
     // Face the way we are travelling, and chomp by distance covered (Pac-Man
     // style) rather than on a clock, so the mouth stills when the hand stills.
     S.chompDist += mag;
     S.lastMoveAt = performance.now();
     if(mag > 0.8){
-      let d2 = Math.atan2(dy,dx) - S.heading;
+      let d2 = Math.atan2(my,mx) - S.heading;
       while(d2 >  Math.PI) d2 -= Math.PI*2;
       while(d2 < -Math.PI) d2 += Math.PI*2;
       S.heading += d2 * 0.35;
     }
     if(!S.moved&&mag>CFG.moveEps) S.moved=true;
-    S.px=Math.max(B.x0,Math.min(B.x1,S.px+dx));
-    S.py=Math.max(B.y0,Math.min(B.y1,S.py+dy));
+    S.px=Math.max(B.x0,Math.min(B.x1,S.px+mx));
+    S.py=Math.max(B.y0,Math.min(B.y1,S.py+my));
   } else if(S.phase==='armed'){
     const px=e.clientX*DPR,py=e.clientY*DPR;
     if(Math.hypot(px-SX(S.px),py-SY(S.py))<Math.max(46*DPR,CFG.markerR*cam.s)) tryLock();
@@ -516,6 +545,10 @@ document.addEventListener('webkitfullscreenchange',()=>{ labelFull(); resize(); 
 
 $('sndTog').checked=soundOn;
 $('sndTog').addEventListener('change',function(){ soundOn=this.checked; store.set('rexySound',soundOn?'1':'0'); });
+$('camTog').checked=camLocked;
+$('camTog').addEventListener('change',function(){ camLocked=this.checked; store.set('rexyCamLock',camLocked?'1':'0'); });
+$('oneTog').checked=oneToOne;
+$('oneTog').addEventListener('change',function(){ oneToOne=this.checked; store.set('rexyOneToOne',oneToOne?'1':'0'); });
 $('btnStart').onclick=begin; $('btnAgain').onclick=begin; $('btnSkip').onclick=begin;
 $('btnRestart').onclick=begin; $('btnResume').onclick=tryLock; $('btnMenu').onclick=toMenu;
 
@@ -713,9 +746,11 @@ function frame(now){
     }
   }
 
-  // always centred on the marker - the apron of blank space keeps it off the edges
-  cam.x+=(S.px-cam.x)*CFG.camLerp;
-  cam.y+=(S.py-cam.y)*CFG.camLerp;
+  // always centred on the marker - the apron of blank space keeps it off the edges.
+  // Locked, the view sits exactly on him: no easing between hand and picture.
+  const ease = camLocked ? 1 : CFG.camLerp;
+  cam.x+=(S.px-cam.x)*ease;
+  cam.y+=(S.py-cam.y)*ease;
 
   draw();
   requestAnimationFrame(frame);
