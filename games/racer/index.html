@@ -215,10 +215,12 @@ const CFG = {
   boardMax: 20,
   tileWorld: 620,
   grassTileWorld: 900,
-  lightStep: 1.0,      // one spoken callout per stage
-  lightGo: 2.0,        // "action" + control handed over
-  lightEnd: 2.8,       // light fully faded
-  deathTime: 1.0       // dissolve before the reset
+  lightStep: 0.75,     // red, then red-amber, then green
+  lightGo: 1.5,        // green + control handed over
+  lightEnd: 2.2,       // light fully faded
+  deathTime: 1.0,      // dissolve before the reset
+  zoomTime: 1.6,       // pulling back to show the whole level
+  celebrateTime: 4.2   // fireworks, then the result card
 };
 
 const PAL = {
@@ -343,7 +345,8 @@ const S={
   pulse:0, lockFailed:false, started:false, lightStage:-1,
   heading:0, chompDist:0, lastMoveAt:0, lastChompCycle:-1,
   coinsGot:[], bonus:0,
-  lightT:99, dieT:0, deathAt:null, graves:[]
+  lightT:99, dieT:0, deathAt:null, graves:[],
+  celT:0, fw:[], fwNext:0, zoom0:null
 };
 function centreCam(){ cam.x=S.px; cam.y=S.py; }
 function newRun(){
@@ -482,7 +485,10 @@ addEventListener('mousemove',e=>{
     if(Math.hypot(px-SX(S.px),py-SY(S.py))<Math.max(46*DPR,CFG.markerR*cam.s)) tryLock();
   }
 });
-cv.addEventListener('click',()=>{ if(S.phase==='armed') tryLock(); });
+cv.addEventListener('click',()=>{
+  if(S.phase==='armed') tryLock();
+  else if(S.phase==='celebrate') showResult();     // skip the celebration
+});
 
 // Discreet local-leaderboard reset for whoever is running a stand: Ctrl+Alt+R.
 function resetBoard(){
@@ -502,6 +508,7 @@ addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.altKey&&(e.key==='r'||e.key==='R')&&document.activeElement!==$('pname')){
     e.preventDefault(); resetBoard(); return;
   }
+  if(S.phase==='celebrate'&&(e.key==='Enter'||e.key===' '||e.key==='Escape')){ e.preventDefault(); showResult(); return; }
   if(e.key==='Escape'&&document.exitPointerLock) document.exitPointerLock();
   // F toggles full screen, but not while typing a name into the leaderboard
   if((e.key==='f'||e.key==='F') && document.activeElement!==$('pname')) toggleFull();
@@ -596,7 +603,98 @@ function renderEndBoard(){
 }
 
 let lastResult=null;
-function finish(){
+// Crossing the line hands the screen over to the celebration: the camera pulls
+// back to show the whole level and the fireworks go up. The clock is already
+// stopped - nothing in here can change the time.
+function crossLine(){
+  S.phase='celebrate';
+  S.celT=0; S.fw=[]; S.fwNext=0;
+  S.zoom0={x:cam.x, y:cam.y, s:cam.s};
+  document.body.classList.remove('hide-cursor');
+  $('prompt').classList.add('hidden');
+  if(document.exitPointerLock) document.exitPointerLock();
+  launchFirework();
+}
+// where the camera has to sit to hold the whole level on screen
+function wholeLevelView(){
+  const b=MINI_B;
+  const bw=Math.max(1,b.x1-b.x0), bh=Math.max(1,b.y1-b.y0);
+  return {x:(b.x0+b.x1)/2, y:(b.y0+b.y1)/2, s:Math.min(cv.width/bw, cv.height/bh)*0.94};
+}
+
+// ---------- fireworks ----------
+const FW_COL=['#f6be1a','#ce2a7c','#4f8fcb','#f2f4f8','#46d39a','#ff7a4a'];
+function launchFirework(){
+  // a burst in the upper part of the screen, in one colour like the real thing
+  const x=cv.width*(0.12+Math.random()*0.76), y=cv.height*(0.10+Math.random()*0.48);
+  const col=FW_COL[Math.floor(Math.random()*FW_COL.length)];
+  const n=46+Math.floor(Math.random()*30), spd=(190+Math.random()*190)*DPR;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, v=spd*(0.45+Math.random()*0.55);
+    S.fw.push({x:x, y:y, px:x, py:y, vx:Math.cos(a)*v, vy:Math.sin(a)*v,
+               life:0, max:1.0+Math.random()*0.8, col:col, r:(1.5+Math.random()*1.9)*DPR});
+  }
+  S.fw.push({x:x, y:y, flash:1, col:col, r:64*DPR, life:0, max:0.24});
+  sfxFirework();
+}
+function updateFireworks(dt){
+  const g=300*DPR, drag=Math.pow(0.4,dt);
+  for(const p of S.fw){
+    p.life+=dt;
+    if(p.flash) continue;
+    p.vy+=g*dt; p.vx*=drag; p.vy*=drag;
+    p.px=p.x; p.py=p.y;
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+  }
+  if(S.fw.length) S.fw=S.fw.filter(p=>p.life<p.max);
+}
+function drawFireworks(){
+  if(!S.fw.length) return;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalCompositeOperation='lighter';
+  ctx.lineCap='round';
+  for(const p of S.fw){
+    const k=Math.max(0,1-p.life/p.max);
+    if(p.flash){
+      const r=p.r*(1.7-k);
+      const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r);
+      gr.addColorStop(0,'rgba(255,255,255,'+(0.55*k).toFixed(3)+')');
+      gr.addColorStop(0.45,'rgba(255,255,255,'+(0.18*k).toFixed(3)+')');
+      gr.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=gr;
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill();
+      continue;
+    }
+    ctx.globalAlpha=k*k;
+    ctx.strokeStyle=p.col; ctx.lineWidth=p.r;
+    ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke();
+  }
+  ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+}
+// A shell: the crack (noise through a collapsing lowpass), a thump underneath,
+// and a tail of tiny crackles. Synthesised, so there is no sample to ship.
+function sfxFirework(){
+  if(!soundOn) return;
+  const c=ac(); if(!c) return;
+  const t=c.currentTime;
+  const n=Math.floor(c.sampleRate*0.5);
+  const buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++){ const k=1-i/n; d[i]=(Math.random()*2-1)*Math.pow(k,3); }
+  const src=c.createBufferSource(); src.buffer=buf;
+  const lp=c.createBiquadFilter(); lp.type='lowpass';
+  lp.frequency.setValueAtTime(2800,t); lp.frequency.exponentialRampToValueAtTime(320,t+0.35);
+  const g=c.createGain(); g.gain.setValueAtTime(0.42,t); g.gain.exponentialRampToValueAtTime(0.0008,t+0.5);
+  src.connect(lp); lp.connect(g); g.connect(c.destination); src.start(t);
+  const o=c.createOscillator(), og=c.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(46,t+0.26);
+  og.gain.setValueAtTime(0.3,t); og.gain.exponentialRampToValueAtTime(0.0008,t+0.3);
+  o.connect(og); og.connect(c.destination); o.start(t); o.stop(t+0.32);
+  for(let i=0;i<14;i++) clack(t+0.12+Math.random()*0.5, 3000+Math.random()*3200, 0.02, 0.045);
+}
+
+function showResult(){
+  if(S.phase==='finished') return;
   S.phase='finished';
   document.body.classList.remove('hide-cursor');
   $('prompt').classList.add('hidden');
@@ -681,7 +779,7 @@ function frame(now){
     const stage = S.lightT<CFG.lightStep ? 0 : S.lightT<CFG.lightGo ? 1 : 2;
     if(stage!==S.lightStage){
       S.lightStage=stage;
-      play(['rollcamera','cameraspeed','action'][stage], 0.95);
+      play(['beep','beep','go'][stage], 0.95);
     }
   }
   if(S.phase==='lights' && S.lightT>=CFG.lightGo) S.phase='running';
@@ -735,14 +833,29 @@ function frame(now){
     }
     if(all){
       const dx=S.px-TRACK.finish[0],dy=S.py-TRACK.finish[1];
-      if(dx*dx+dy*dy<CFG.finishR*CFG.finishR) finish();
+      if(dx*dx+dy*dy<CFG.finishR*CFG.finishR) crossLine();
     }
   }
 
+  if(S.phase==='celebrate'){
+    S.celT+=dt;
+    // ease back to the whole level, recomputed each frame so a resize can't strand it
+    const k=Math.min(1,S.celT/CFG.zoomTime), e=1-Math.pow(1-k,3), z=wholeLevelView();
+    cam.x=S.zoom0.x+(z.x-S.zoom0.x)*e;
+    cam.y=S.zoom0.y+(z.y-S.zoom0.y)*e;
+    cam.s=S.zoom0.s+(z.s-S.zoom0.s)*e;
+    if(S.celT>=S.fwNext && S.celT<CFG.celebrateTime-0.7){
+      S.fwNext=S.celT+0.2+Math.random()*0.32;
+      launchFirework();
+    }
+    if(S.celT>=CFG.celebrateTime) showResult();
+  }
+  if(S.fw.length) updateFireworks(dt);
+
   // The view sits exactly on the marker: no easing between hand and picture, so
   // the track slides under a pointer that never drifts. The blank apron keeps
-  // him clear of the screen edges.
-  cam.x=S.px; cam.y=S.py;
+  // him clear of the screen edges. The celebration drives the camera itself.
+  if(S.phase!=='celebrate' && S.phase!=='finished'){ cam.x=S.px; cam.y=S.py; }
 
   draw();
   requestAnimationFrame(frame);
@@ -808,6 +921,7 @@ function draw(){
   drawPlayer();
   drawLights();
   drawMinimap();
+  drawFireworks();
 
   $('tTime').textContent=S.elapsed.toFixed(2);
   $('tPen').textContent=S.penalty.toFixed(2);
