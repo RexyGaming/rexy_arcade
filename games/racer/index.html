@@ -130,10 +130,10 @@
       <li>Drift near an edge and the marker <b>glows red</b> as a warning.</li>
       <li>Clip the border or a cone and the <b>penalty clock runs</b>.</li>
       <li>Go right through something, or stray well off the track, and you're <b>out</b>
-          &mdash; a gravestone marks the spot and the run starts over.</li>
+          &mdash; a gravestone marks the spot and the run starts over, coins and all.</li>
       <li id="coinRule">Eat the <b>gold coins</b> for a time bonus &mdash; if you dare reach for them.</li>
       <li><b>Esc</b> pauses &mdash; resume, restart or quit from there.</li>
-      <li>Clappa moves by exactly what your hand does &mdash; raw counts, no smoothing.
+      <li>Clappa moves by exactly what your hand does: one count, one pixel, no smoothing.
           Set the feel with <b>wheel sensitivity</b> below.</li>
       <li><b>F</b> toggles full screen at any time.</li>
     </ul>
@@ -142,8 +142,6 @@
       <input type="range" id="sens" min="0.2" max="3" step="0.05" value="1">
     </div>
     <label class="sndrow"><input type="checkbox" id="sndTog" checked> Sound</label>
-    <label class="sndrow" title="Hold the view exactly on Clappa instead of easing after him"><input type="checkbox" id="camTog"> Locked camera</label>
-    <label class="sndrow" title="One mouse count moves Clappa one screen pixel, exactly like your desktop cursor"><input type="checkbox" id="oneTog"> Cursor 1:1</label>
     <div class="row" style="margin-bottom:4px">
       <button class="btn" id="btnStart" disabled>Start</button>
       <button class="btn ghost" id="btnFull">Full screen</button>
@@ -209,12 +207,10 @@ const CFG = {
   finishR: RacerCore.RULES.finishR,
   cpR: RacerCore.RULES.cpR,
   moveEps: 1.5,
-  baseSpeed: 2.6,
   viewSpan: 1800,
   maxStep: 1200,       // biggest single-event move we pass through unchanged, world units
   warpStep: 4000,      // beyond this it cannot be a hand: a pointer warp, so ignore it
   chompPeriod: 210,    // world units travelled per full chomp cycle
-  camLerp: 0.16,
   miniW: 230,
   boardMax: 20,
   tileWorld: 620,
@@ -246,8 +242,6 @@ let STK={};        // sticker images, by id
 let asphaltPat=null, grassPat=null;
 const AUD={};
 let soundOn=(store.get('rexySound','1')!=='0');
-let camLocked=(store.get('rexyCamLock','0')==='1');
-let oneToOne=(store.get('rexyOneToOne','0')==='1');
 let rawInput=false;      // true once the browser gives us unaccelerated deltas
 let lastTick=0;
 function play(k,vol){
@@ -412,6 +406,9 @@ function finishDeath(){
   S.elapsed=0; S.penalty=0; S.moved=false; S.touches=0;
   S.penalising=false; S.wasPenalising=false; S.warning=false;
   S.flash=0; S.warnGlow=0; S.heading=0; S.chompDist=0; S.lastMoveAt=0;
+  // the coins come back, and the bonus with them: a fresh attempt is the whole
+  // run again, and the same line should always be worth the same time
+  S.coinsGot=TRACK.coins.map(()=>false); S.bonus=0;
   centreCam();
   S.phase='lights'; S.lightT=0; S.lightStage=-1;   // run the lights again before letting go
 }
@@ -450,10 +447,10 @@ document.addEventListener('pointerlockchange',()=>{
 
 addEventListener('mousemove',e=>{
   if(S.phase==='running'){
-    // Default gain is the event build's 2.6 world units per mouse count. Cursor 1:1
-    // instead moves him one screen pixel per count, whatever the screen, so his
-    // travel matches the desktop pointer exactly.
-    const gain = oneToOne ? DPR/cam.s : CFG.baseSpeed;
+    // One mouse count moves Clappa one screen pixel, on any screen: his travel
+    // matches the desktop pointer exactly, which is the whole mechanic. The
+    // sensitivity slider is the only multiplier.
+    const gain = DPR/cam.s;
     const dx=(e.movementX||0)*gain*S.sens;
     const dy=(e.movementY||0)*gain*S.sens;
     if(!dx&&!dy) return;
@@ -545,10 +542,6 @@ document.addEventListener('webkitfullscreenchange',()=>{ labelFull(); resize(); 
 
 $('sndTog').checked=soundOn;
 $('sndTog').addEventListener('change',function(){ soundOn=this.checked; store.set('rexySound',soundOn?'1':'0'); });
-$('camTog').checked=camLocked;
-$('camTog').addEventListener('change',function(){ camLocked=this.checked; store.set('rexyCamLock',camLocked?'1':'0'); });
-$('oneTog').checked=oneToOne;
-$('oneTog').addEventListener('change',function(){ oneToOne=this.checked; store.set('rexyOneToOne',oneToOne?'1':'0'); });
 $('btnStart').onclick=begin; $('btnAgain').onclick=begin; $('btnSkip').onclick=begin;
 $('btnRestart').onclick=begin; $('btnResume').onclick=tryLock; $('btnMenu').onclick=toMenu;
 
@@ -746,11 +739,10 @@ function frame(now){
     }
   }
 
-  // always centred on the marker - the apron of blank space keeps it off the edges.
-  // Locked, the view sits exactly on him: no easing between hand and picture.
-  const ease = camLocked ? 1 : CFG.camLerp;
-  cam.x+=(S.px-cam.x)*ease;
-  cam.y+=(S.py-cam.y)*ease;
+  // The view sits exactly on the marker: no easing between hand and picture, so
+  // the track slides under a pointer that never drifts. The blank apron keeps
+  // him clear of the screen edges.
+  cam.x=S.px; cam.y=S.py;
 
   draw();
   requestAnimationFrame(frame);
