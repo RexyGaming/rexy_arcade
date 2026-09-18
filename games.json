@@ -36,5 +36,24 @@
       "note": "Submitted as base minus total milliseconds, so faster is a higher score."
     },
     "status": "live"
+  },
+  {
+    "id": "rexy-racer-tiny-tape-logo",
+    "title": "Rexy Racer — Tiny Tape",
+    "description": "The tape's tiny but the track isn't — longer and twistier. Hold your line.",
+    "credit": "Original Unreal game by Koen Ebeling",
+    "thumb": "art/rexy-racer-tiny-tape-logo.png",
+    "url": "games/racer/index.html?level=rexy-racer-tiny-tape-logo",
+    "inputs": [
+      "rexy_wheels",
+      "mouse"
+    ],
+    "score": {
+      "type": "time",
+      "base": 600000,
+      "decimals": 2,
+      "note": "Submitted as base minus total milliseconds, so faster is a higher score."
+    },
+    "status": "live"
   }
 ]

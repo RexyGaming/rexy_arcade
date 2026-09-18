@@ -177,6 +177,39 @@ function renderGrid() {
       location.hash = "#game=" + c.dataset.id;
     };
   });
+  hydrateThumbs();
+}
+
+// ---------- automatic card thumbnails ----------
+// A curated art/<id>.png always wins. If a game has none, fall back to the
+// track thumbnail the level editor already embedded in the level file
+// (arcade.thumb) — so adding a level needs no thumbnail step at all.
+function levelJsonURL(g) {
+  const m = /[?&]level=([^&]+)/.exec(g.url || "");
+  if (!m) return null;                       // not a racer level; nothing to derive
+  const base = (g.url.split("?")[0]).replace(/index\.html$/, "");
+  return base + "levels/" + m[1] + ".json";
+}
+function setCardThumb(id, src) {
+  const t = el.grid.querySelector('.gcard[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"] .thumb');
+  if (t) t.style.backgroundImage = "url('" + src + "')";
+}
+function imageLoads(src) {
+  return new Promise((res) => { const im = new Image(); im.onload = () => res(true); im.onerror = () => res(false); im.src = src; });
+}
+async function hydrateThumbs() {
+  for (const g of GAMES) {
+    if (g.thumb && await imageLoads(g.thumb)) continue;    // static png present — use it
+    const key = "rexyThumb_" + g.id;
+    let cached = null; try { cached = localStorage.getItem(key); } catch (e) {}
+    if (cached) { setCardThumb(g.id, cached); continue; }
+    const lu = levelJsonURL(g); if (!lu) continue;
+    try {
+      const lv = await (await fetch(lu, { cache: "no-cache" })).json();
+      const t = lv && lv.arcade && lv.arcade.thumb;
+      if (t) { try { localStorage.setItem(key, t); } catch (e) {} setCardThumb(g.id, t); }
+    } catch (e) {}
+  }
 }
 
 // ---------- leaderboard panel ----------

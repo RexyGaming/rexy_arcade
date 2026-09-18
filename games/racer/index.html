@@ -220,7 +220,8 @@ const CFG = {
   lightEnd: 2.2,       // light fully faded
   deathTime: 1.0,      // dissolve before the reset
   zoomTime: 1.0,       // pulling back to show the whole level
-  celebrateTime: 2.0,  // fireworks, then the result card
+  celebrateTime: 2.0,  // fireworks, then the whole-level reveal
+  holdEnd: 2.0,        // extra seconds holding the final whole-logo frame (product placement)
   grassFlat: '#28300d', roadFlat: '#423e39'   // the textures' own average colours
 };
 
@@ -860,7 +861,7 @@ function frame(now){
       S.fwNext=S.celT+0.15+Math.random()*0.22;
       launchFirework();
     }
-    if(S.celT>=CFG.celebrateTime) showResult();
+    if(S.celT>=CFG.celebrateTime+CFG.holdEnd) showResult();
   }
   if(S.fw.length) updateFireworks(dt);
 
@@ -938,7 +939,7 @@ function draw(){
   worldTransform(); drawStickers('top'); ctx.setTransform(1,0,0,1,0,0);
   drawPlayer();
   drawLights();
-  drawMinimap();
+  if(S.phase!=='celebrate' && S.phase!=='finished') drawMinimap();   // hidden during the whole-logo reveal
   drawFireworks();
 
   $('tTime').textContent=S.elapsed.toFixed(2);
