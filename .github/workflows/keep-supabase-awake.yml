@@ -12,12 +12,19 @@ name: Keep Supabase awake
 #
 # If a run fails, GitHub emails the repo owner - that is the signal that the
 # project paused, or that the key changed.
+#
+# Monday's run also posts a summary of the week to a rolling issue, which is a
+# readable record of what the boards are doing while the arcade is quiet.
 
 on:
   schedule:
     - cron: '17 9 * * 1'      # Monday 09:17 UTC
     - cron: '17 9 * * 4'      # Thursday 09:17 UTC
   workflow_dispatch:           # or run it by hand from the Actions tab
+
+permissions:
+  contents: read
+  issues: write                # the Monday summary is posted as an issue comment
 
 jobs:
   poke:
@@ -63,3 +70,32 @@ jobs:
             [ "$code" = "200" ] || exit 1
           done
           echo "Project is awake."
+
+      # ---- Monday: the week in review ----
+      - name: Build the weekly summary
+        id: sum
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 9 * * 1'
+        run: |
+          node tools/weekly_summary.mjs > summary.md
+          cat summary.md >> "$GITHUB_STEP_SUMMARY"
+          cat summary.md
+
+      - name: Post it to the weekly issue
+        if: steps.sum.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "" >> summary.md
+          echo "[The run that produced this]($RUN_URL) · @${REPO%%/*}" >> summary.md
+          # one rolling issue, found by its label, so the history reads as a thread
+          num=$(gh issue list --label arcade-weekly --state all --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            gh label create arcade-weekly --color 1D76DB --description "Weekly Rexy Arcade summary" || true
+            url=$(gh issue create --title "Rexy Arcade — weekly summary" --label arcade-weekly --body-file summary.md)
+            echo "opened $url"
+          else
+            gh issue comment "$num" --body-file summary.md
+            echo "commented on issue #$num"
+          fi
