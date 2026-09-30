@@ -1,0 +1,65 @@
+name: Keep Supabase awake
+
+# A free Supabase project pauses after 7 days with no requests, which would take
+# the arcade's leaderboard offline while the games are quiet. This makes a few
+# harmless read requests twice a week, from GitHub's runners - nothing needs to
+# be switched on at home.
+#
+# It reads the project URL and the anon key out of lib/config.js, so there is one
+# source of truth and no secret to keep in step. That key is public by design and
+# already shipped to every player's browser; Row Level Security protects the data.
+# The service_role key must NEVER appear here, or anywhere else in this repo.
+#
+# If a run fails, GitHub emails the repo owner - that is the signal that the
+# project paused, or that the key changed.
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'      # Monday 09:17 UTC
+    - cron: '17 9 * * 4'      # Thursday 09:17 UTC
+  workflow_dispatch:           # or run it by hand from the Actions tab
+
+jobs:
+  poke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the project's own config
+        id: cfg
+        run: |
+          url=$(grep -oE 'https://[a-z0-9]+\.supabase\.co' lib/config.js | head -1)
+          key=$(grep -oE 'eyJ[A-Za-z0-9._-]+' lib/config.js | head -1)
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "Could not read SUPABASE_URL / SUPABASE_ANON_KEY from lib/config.js"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "Project: $url"
+
+      - name: Read a leaderboard
+        env:
+          URL: ${{ steps.cfg.outputs.url }}
+          KEY: ${{ steps.cfg.outputs.key }}
+        run: |
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' \
+            -X POST "$URL/rest/v1/rpc/get_leaderboard" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H 'Content-Type: application/json' \
+            -d '{"p_game_id":"rexy-racer-aco","p_control":"all","p_period":"all","p_limit":1}')
+          echo "rpc get_leaderboard -> HTTP $code"
+          head -c 400 /tmp/out.json; echo
+          [ "$code" = "200" ] || exit 1
+
+      - name: Touch auth and the profiles table
+        env:
+          URL: ${{ steps.cfg.outputs.url }}
+          KEY: ${{ steps.cfg.outputs.key }}
+        run: |
+          for path in 'auth/v1/health' 'rest/v1/profiles?select=id&limit=1'; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$URL/$path" -H "apikey: $KEY")
+            echo "$path -> HTTP $code"
+            [ "$code" = "200" ] || exit 1
+          done
+          echo "Project is awake."
