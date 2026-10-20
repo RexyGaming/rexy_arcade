@@ -158,7 +158,10 @@
     <div class="result" id="eTotal"></div>
     <div class="brk" id="eBrk"></div>
     <div id="arcadeBlock" class="hidden">
-      <div class="arcLbl">Played with</div>
+      <div class="arcLbl">Name on the board</div>
+      <div class="row"><input type="text" id="boardName" maxlength="24" placeholder="Your name" autocomplete="off" spellcheck="false"></div>
+      <div class="note">Someone else at the controls? Put their name in &mdash; the run still posts from your account.</div>
+      <div class="arcLbl" style="margin-top:14px">Played with</div>
       <div class="row"><select id="ctlPick"></select></div>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="btnGlobal">Submit to global board</button>
@@ -326,11 +329,13 @@ function prepareGeometry(){
 
 let DPR=1;
 const cam={x:0,y:0,s:1};
+// the zoom a run is played at; the celebration is the only thing that leaves it
+function playScale(){ return (Math.min(innerWidth,innerHeight)*DPR)/CFG.viewSpan; }
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
   cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
   cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
-  cam.s=(Math.min(innerWidth,innerHeight)*DPR)/CFG.viewSpan;
+  cam.s=playScale();
 }
 addEventListener('resize',resize); resize();
 const SX=x=>(x-cam.x)*cam.s+cv.width/2;
@@ -350,7 +355,10 @@ const S={
   lightT:99, dieT:0, deathAt:null, graves:[],
   celT:0, fw:[], fwNext:0, zoom0:null
 };
-function centreCam(){ cam.x=S.px; cam.y=S.py; }
+// Also restores the play zoom: the celebration pulls the camera right out, and
+// without this a run started from the result card stays zoomed out until
+// something resizes the window - which on a handheld never happens.
+function centreCam(){ cam.x=S.px; cam.y=S.py; cam.s=playScale(); }
 function newRun(){
   S.px=TRACK.start[0]; S.py=TRACK.start[1];
   S.elapsed=0; S.penalty=0; S.moved=false;
@@ -726,6 +734,10 @@ function showResult(){
     $('entryBlock').classList.add('hidden');
     $('arcadeBlock').classList.remove('hidden');
     $('arcNote').textContent = (window.RexyArcade && window.RexyArcade.note) || '';
+    // keeps whatever was typed last, so the same player can run again without
+    // retyping; starts as the signed-in account's own name
+    const bn=$('boardName');
+    if(!bn.value) bn.value=(window.RexyArcade && window.RexyArcade.displayName) || '';
     $('btnGlobal').disabled = !(window.RexyArcade && window.RexyArcade.submit);
     $('btnGlobal').textContent = 'Submit to global board';
   } else {
@@ -763,12 +775,19 @@ $('btnGlobal').onclick=async function(){
     $('arcNote').textContent='Global board unavailable — your time is saved locally.';
     return;
   }
+  const typed=($('boardName').value||'').trim();
+  if(typed && (typed.length<2 || typed.length>24)){
+    $('arcNote').textContent='A name on the board has to be 2–24 characters.';
+    return;
+  }
   btn.disabled=true; btn.textContent='Submitting…';
   try{
-    const r=await window.RexyArcade.submit(total, $('ctlPick').value);
-    $('arcNote').textContent='Submitted — you are #'+r.rank+' on the global board.';
+    const r=await window.RexyArcade.submit(total, $('ctlPick').value, typed);
+    $('arcNote').textContent=(r.nameIgnored
+      ? 'Posted as '+(window.RexyArcade.displayName||'your account')+' — the leaderboard database has not had the guest-name update yet. '
+      : '')+'Submitted — you are #'+r.rank+' on the global board.';
     btn.textContent='Submitted';
-    BOARD.push({name:(window.RexyArcade.displayName||'You'), total:total, when:lastResult.stamp, me:true});
+    BOARD.push({name:(r.nameIgnored?'':typed)||window.RexyArcade.displayName||'You', total:total, when:lastResult.stamp, me:true});
     BOARD.sort(function(a,b){return a.total-b.total;});
     saveBoard(); pendingEntry=null; renderEndBoard(); renderStartBoard();
     $('againRow').classList.remove('hidden');
@@ -1301,12 +1320,13 @@ async function arcadeBridge(){
       active: true,
       displayName: null,
       note: '',
-      async submit(totalSeconds, control) {
+      async submit(totalSeconds, control, playerName) {
         // The board ranks high-to-low, so a time trial submits base minus the
         // elapsed milliseconds. games.json turns it back into a time for display.
         const score = Math.max(0, SCORE_BASE - Math.round(totalSeconds * 1000));
         const r = await Rexy.submitScore(GAME_ID, control, score, {
-          meta: { total_ms: Math.round(totalSeconds * 1000), track: GAME_ID }
+          meta: { total_ms: Math.round(totalSeconds * 1000), track: GAME_ID },
+          playerName: playerName || null
         });
         try {
           window.parent.postMessage({ type: 'rexy:gameover', id: GAME_ID, score, control, rank: r.rank }, location.origin);
