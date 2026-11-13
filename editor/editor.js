@@ -240,16 +240,16 @@ const TOOLS = [
   { id: 'poly', key: 'L', name: 'Line road', help: 'Like Curve, but dead straight between points: sharp corners, hairpins, chicanes.' },
   { id: 'pieces', key: 'T', name: 'Track pieces', help: 'Click to start a chain — drag while clicking to aim it, or start on the end of a road to join it. Then <b>↑</b> straight, <b>←</b>/<b>→</b> turns, <b>Backspace</b> removes the last piece.' },
   { sep: true },
-  { id: 'cone', key: 'K', name: 'Cone', help: 'Click to place a cone. Clappa clipping it is a penalty; driving through it is out.' },
+  { id: 'cone', key: 'K', name: 'Cone', help: 'Click to place a cone. Clappy clipping it is a penalty; driving through it is out.' },
   { id: 'barrel', key: 'B', name: 'Barrel', help: 'Click to place a barrel — a bigger round obstacle.' },
   { id: 'barrier', key: 'R', name: 'Barrier', help: 'Click to place a barrier. It lands across the road; <b>Q</b>/<b>E</b> rotate, length in Selection.' },
-  { id: 'coin', key: 'O', name: 'Coin', help: 'Click to place a coin. The check gives each coin 0–3 stars for the skill it takes: tight gaps and detours off the racing line score, freebies on the line don\'t. Watch the Clappa probe to find tight spots.' },
+  { id: 'coin', key: 'O', name: 'Coin', help: 'Click to place a coin. The check gives each coin 0–3 stars for the skill it takes: tight gaps and detours off the racing line score, freebies on the line don\'t. Watch the Clappy probe to find tight spots.' },
   { sep: true },
-  { id: 'checkpoint', key: 'P', name: 'Check&shy;point', help: 'Clappa must pass through every checkpoint circle before the finish counts. Use them to stop short cuts.' },
+  { id: 'checkpoint', key: 'P', name: 'Check&shy;point', help: 'Clappy must pass through every checkpoint circle before the finish counts. Use them to stop short cuts.' },
   { id: 'start', key: 'S', name: 'Start', help: 'Click to move the start.' },
   { id: 'finish', key: 'F', name: 'Finish', help: 'Click to move the finish. The strip lines itself up with the road; <b>Q</b>/<b>E</b> to adjust.' },
   { sep: true },
-  { id: 'sticker', key: 'I', name: 'Sticker', help: 'Add an image (logo, sign, arrow, sponsor…), pick it, then click the map to stamp it — as many copies as you like. Click a sticker to select and drag it; drag its handle or use <b>Q</b>/<b>E</b> to turn it. Stickers are decoration only: Clappa drives straight over them.' },
+  { id: 'sticker', key: 'I', name: 'Sticker', help: 'Add an image (logo, sign, arrow, sponsor…), pick it, then click the map to stamp it — as many copies as you like. Click a sticker to select and drag it; drag its handle or use <b>Q</b>/<b>E</b> to turn it. Stickers are decoration only: Clappy drives straight over them.' },
   { id: 'backdrop', key: 'G', name: 'Backdrop', help: 'Drag the level backdrop into place. Load it, and set its size and opacity, in the Look panel.' },
   { id: 'underlay', key: 'U', name: 'Underlay', help: 'Drag the tracing image into place. Load one, and set its size and opacity, in the Underlay panel.' }
 ];
@@ -1458,7 +1458,7 @@ function renderSel() {
   if (s.t === 'cp') {
     const c = P.checkpoints[s.i]; if (!c) { UI.sel = null; return renderSel(); }
     box.append(h('div', { class: 'toolname' }, 'Checkpoint ' + (s.i + 1)),
-      h('p', { class: 'hintp' }, 'Clappa\'s centre must come within ' + RULES.cpR + ' units. Order doesn\'t matter — every one must be ticked before the finish.'),
+      h('p', { class: 'hintp' }, 'Clappy\'s centre must come within ' + RULES.cpR + ' units. Order doesn\'t matter — every one must be ticked before the finish.'),
       h('div', { class: 'cols2' }, field('X', () => c[0], v => c[0] = v), field('Y', () => c[1], v => c[1] = v)),
       h('div', { class: 'row' }, del()));
     return;
@@ -1476,7 +1476,7 @@ function renderSel() {
     box.append(h('div', { class: 'toolname' }, 'Finish'),
       h('div', { class: 'cols3' }, field('X', () => P.finish[0], v => P.finish[0] = v), field('Y', () => P.finish[1], v => P.finish[1] = v),
         field('Angle °', () => P.finishYaw, v => P.finishYaw = normDeg(v), { step: 5 })),
-      h('p', { class: 'hintp' }, 'The run ends when Clappa\'s centre comes within ' + RULES.finishR + ' units of the strip\'s middle (dashed ring), once every checkpoint is ticked.'),
+      h('p', { class: 'hintp' }, 'The run ends when Clappy\'s centre comes within ' + RULES.finishR + ' units of the strip\'s middle (dashed ring), once every checkpoint is ticked.'),
       h('div', { class: 'row' }, h('button', { onclick: () => mutate(() => { const at = WORLD.roadAt(P.finish[0], P.finish[1]); if (at) P.finishYaw = normDeg(at.deg); }) }, 'Line up with road')));
   }
 }
@@ -1515,7 +1515,7 @@ function renderCheck() {
     box.append(h('label', null, 'Coins — click one to go to it'), tbl);
   }
   box.append(h('p', { class: 'hintp', style: 'margin-top:8px' },
-    'Zones: green = clean and reachable, amber = Clappa touches something (penalty), blue = clean but cut off from the start, blank = out.'));
+    'Zones: green = clean and reachable, amber = Clappy touches something (penalty), blue = clean but cut off from the start, blank = out.'));
 }
 
 function renderLevel() {
@@ -1538,7 +1538,7 @@ function renderLevel() {
     h('div', { class: 'cols2' },
       field('Coin bonus (s)', () => lv.coinBonus, v => lv.coinBonus = v, { min: 0, step: 0.1 }),
       field('Edge tolerance', () => lv.edgePad, v => lv.edgePad = v, { min: 0, max: 200, step: 5 })),
-    h('p', { class: 'hintp' }, 'Edge tolerance is how far past an edge Clappa\'s centre can go before he\'s out. Both existing levels use 50.')
+    h('p', { class: 'hintp' }, 'Edge tolerance is how far past an edge Clappy\'s centre can go before he\'s out. Both existing levels use 50.')
   );
   const badges = h('div', { class: 'row' });
   for (const [k, name] of [['rexy', 'Rexy'], ['aco', 'ACO'], ['tinytape', 'Tiny Tape']]) {

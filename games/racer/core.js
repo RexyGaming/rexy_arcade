@@ -13,7 +13,7 @@
 'use strict';
 
 const RULES = {
-  markerR: 44,        // Clappa's radius: touching anything with it runs the penalty clock
+  markerR: 44,        // Clappy's radius: touching anything with it runs the penalty clock
   warnBand: 26,       // red glow this far before contact
   obsKillDepth: 0,    // centre inside furniture = out
   finishR: 190,       // centre within this of the finish point ends the run
@@ -247,7 +247,7 @@ function buildWorld(levelIn) {
     const dead = over > L.edgePad || pen > RULES.obsKillDepth;
     const touching = !dead && (over + R > 0 || gap < R);
     return { over, gap, pen, dead, touching, clean: !dead && !touching,
-             room: Math.min(-(over + R), gap - R) };   // spare clearance for Clappa, <0 = contact
+             room: Math.min(-(over + R), gap - R) };   // spare clearance for Clappy, <0 = contact
   }
 
   // road direction + width near a point (for finish strips, barrier placement)

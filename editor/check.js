@@ -138,10 +138,10 @@ function analyse(raw) {
   // ---- start ----
   const sp = W.probe(L.start[0], L.start[1]);
   if (sp.dead) issue('err', 'The start is off the road.', L.start);
-  else if (sp.touching) issue('warn', 'Clappa touches something at the start — move it clear of edges and furniture.', L.start);
+  else if (sp.touching) issue('warn', 'Clappy touches something at the start — move it clear of edges and furniture.', L.start);
 
   if (!L.checkpoints.length)
-    issue('warn', 'No checkpoints: the run ends as soon as Clappa reaches the finish, however he got there. Add a few along the route.');
+    issue('warn', 'No checkpoints: the run ends as soon as Clappy reaches the finish, however he got there. Add a few along the route.');
 
   const S = route(survive), Cl = route(clean);
   out.checkpoints = L.checkpoints.map(() => 'ok');

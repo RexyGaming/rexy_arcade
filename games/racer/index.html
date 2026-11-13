@@ -125,15 +125,15 @@
     <div class="byline" id="lvByline"></div>
     <p id="lvBlurb"></p>
     <ul id="rules">
-      <li>Take control by moving your cursor onto <b>Clappa</b>.</li>
-      <li>You are <b>Clappa</b>, and he follows your hand exactly &mdash; you <b>are</b> the cursor.</li>
+      <li>Take control by moving your cursor onto <b>Clappy</b>.</li>
+      <li>You are <b>Clappy</b>, and he follows your hand exactly &mdash; you <b>are</b> the cursor.</li>
       <li>Drift near an edge and the marker <b>glows red</b> as a warning.</li>
       <li>Clip the border or a cone and the <b>penalty clock runs</b>.</li>
       <li>Go right through something, or stray well off the track, and you're <b>out</b>
           &mdash; a gravestone marks the spot and the run starts over, coins and all.</li>
       <li id="coinRule">Eat the <b>gold coins</b> for a time bonus &mdash; if you dare reach for them.</li>
       <li><b>Esc</b> pauses &mdash; resume, restart or quit from there.</li>
-      <li>Clappa moves by exactly what your hand does: one count, one pixel, no smoothing.
+      <li>Clappy moves by exactly what your hand does: one count, one pixel, no smoothing.
           Set the feel with <b>wheel sensitivity</b> below.</li>
       <li><b>F</b> toggles full screen at any time.</li>
     </ul>
@@ -256,13 +256,13 @@ function play(k,vol){
   try{ const a=AUD[k].cloneNode(); a.volume=(vol==null?1:vol); const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
 }
 function playDeath(){
-  // the slate cracks first - immediate feedback for the crash - then Clappa
+  // the slate cracks first - immediate feedback for the crash - then Clappy
   // calls it: "end board", the way a tail slate actually goes.
   play('die'+Math.floor(Math.random()*5), 1.0);
   setTimeout(()=>play('endboard', 0.95), 190);
 }
 
-// Clappa's own voice, synthesised: a short noise burst through a bandpass is a
+// Clappy's own voice, synthesised: a short noise burst through a bandpass is a
 // woody percussive clack, and two of them a beat apart read as "clap-pa".
 let AC=null;
 function ac(){
@@ -281,7 +281,7 @@ function clack(at, freq, dur, gain){
   src.connect(bp); bp.connect(g); g.connect(c.destination);
   src.start(at);
 }
-function sfxClappa(){
+function sfxClappy(){
   if(!soundOn) return;
   const c=ac(); if(!c) return;
   const t=c.currentTime;
@@ -460,7 +460,7 @@ document.addEventListener('pointerlockchange',()=>{
 
 addEventListener('mousemove',e=>{
   if(S.phase==='running'){
-    // One mouse count moves Clappa one screen pixel, on any screen: his travel
+    // One mouse count moves Clappy one screen pixel, on any screen: his travel
     // matches the desktop pointer exactly, which is the whole mechanic. The
     // sensitivity slider is the only multiplier.
     const gain = DPR/cam.s;
@@ -852,7 +852,7 @@ function frame(now){
     // one synthesised "clap-pa" per chomp cycle, only while actually moving
     const cyc=Math.floor(S.chompDist/CFG.chompPeriod);
     if(cyc!==S.lastChompCycle){
-      if(S.lastChompCycle>=0 && S.moved) sfxClappa();
+      if(S.lastChompCycle>=0 && S.moved) sfxClappy();
       S.lastChompCycle=cyc;
     }
 
@@ -970,7 +970,7 @@ function draw(){
 }
 
 // Decorative images placed in the level editor, drawn in world space on one of
-// three layers: the grass, the road surface, or on top. Clappa drives over them.
+// three layers: the grass, the road surface, or on top. Clappy drives over them.
 function drawStickers(layer){
   const L=TRACK.stickers;
   if(!L||!L.length) return;
