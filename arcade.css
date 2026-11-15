@@ -13,9 +13,11 @@
 }
 .brand{display:flex; align-items:center; gap:14px; min-width:0; cursor:pointer;}
 .brand h1{white-space:nowrap;}
-/* the wordmark is the logo itself; the h1 keeps the name for screen readers */
+/* the wordmark is the logo itself; the h1 keeps the name for screen readers.
+   Clappy and the logo are a matched pair - same height, side by side - and the
+   tagline runs along to the right of both rather than stacking under the logo. */
 .brand .wordmark{line-height:0;}
-.brand .wordmark img{display:block; height:36px; width:auto;}
+.brand .wordmark img{display:block; height:38px; width:auto;}
 /* Clappy, chomping in the corner. One 4-frame sheet stepped by keyframes:
    steps(1) holds each frame rather than cross-fading, and the 0-1-2-3-2-1
    order gives the mouth an open-and-shut cycle rather than a snap back. */
@@ -37,7 +39,8 @@
 @media (prefers-reduced-motion: reduce){
   .brand .mark{animation:none; background-position:0 0}
 }
-.tagline{font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; margin-top:3px;}
+.tagline{font-size:.66rem; letter-spacing:.14em; text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
 
 .authbar{display:flex; align-items:center; gap:10px; min-width:0;}
 .authbar .who{font-size:.8rem; white-space:nowrap; overflow:hidden;
@@ -102,7 +105,7 @@
 @media (max-width:560px){
   .topbar{padding:12px 16px;}
   .wrap{padding:8px 16px 40px;}
-  .brand .wordmark img{height:28px;}
+  .brand .wordmark img{height:26px;}
   .brand .mark{width:26px; height:26px;}
   .grid{grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:14px;}
   .gameTop{flex-wrap:wrap;}
