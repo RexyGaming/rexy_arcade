@@ -5,11 +5,36 @@
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
-:root{
+/* The dark palette is the baseline, and it doubles as a reusable block: any
+   element can be pinned to it with class="theme-dark" even when the page has
+   gone light. A declaration on the element always beats a value inherited
+   from :root, so the pin holds whatever the page is doing around it. */
+:root, .theme-dark{
+  color-scheme:dark;
   --bg:#0A0D12; --surface:#131822; --surface2:#1B2230;
   --border:#26324a; --border-soft:#1c2536; --inset:#0d1219;
   --pink:#CE2A7C; --gold:#F6BE1A; --blue:#4F8FCB; --blue-deep:#336699;
   --text:#EAF1F8; --muted:#8497A8; --faint:#5a6b7d; --ok:#46d39a;
+  --err:#ff7a6a; --err-soft:#5a2828; --ok-soft:rgba(70,211,154,.4);
+  --scrim:rgba(5,7,10,.7); --me-row:rgba(206,42,124,.12);
+}
+
+/* Light mode. Dark above is the baseline; a page follows the viewer's system
+   setting by putting class="theme-auto" on <html>, so anything built against
+   the dark look (the editor, the games themselves) stays dark until it opts
+   in. Same tokens throughout - only their values change here.
+   The brand colours shift a little: pink, blue, gold and green are all chosen
+   for contrast against a near-white page rather than a near-black one. */
+@media (prefers-color-scheme: light){
+  :root.theme-auto{
+    color-scheme:light;
+    --bg:#F2F5F9; --surface:#FFFFFF; --surface2:#E7ECF4;
+    --border:#C6D0DE; --border-soft:#DDE4ED; --inset:#EDF1F7;
+    --pink:#BC2270; --gold:#8A6300; --blue:#2C6CA6; --blue-deep:#7FA8CC;
+    --text:#111822; --muted:#51637A; --faint:#5F6F82; --ok:#1C8A5F;
+    --err:#B3261E; --err-soft:#E0B5B1; --ok-soft:rgba(28,138,95,.45);
+    --scrim:rgba(18,26,38,.45); --me-row:rgba(188,34,112,.10);
+  }
 }
 
 *{box-sizing:border-box;}
@@ -53,7 +78,7 @@ th{text-align:left;font-size:.58rem;letter-spacing:.16em;text-transform:uppercas
   color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--border);}
 td{padding:9px 10px;border-bottom:1px solid var(--border-soft);font-size:.86rem;}
 td.num{font-family:'JetBrains Mono',monospace;color:var(--text);}
-tr.me{background:rgba(206,42,124,.12);}
+tr.me{background:var(--me-row);}
 tr.me td:first-child{box-shadow:inset 2px 0 0 var(--pink);}
 
 .tag{font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);
@@ -62,6 +87,6 @@ tr.me td:first-child{box-shadow:inset 2px 0 0 var(--pink);}
 .status{background:var(--inset);border:1px solid var(--border-soft);border-radius:8px;
   padding:9px 12px;font-size:.72rem;color:var(--muted);min-height:20px;
   font-family:'JetBrains Mono',monospace;letter-spacing:.02em;}
-.status.err{color:#ff7a6a;border-color:#5a2828;}
+.status.err{color:var(--err);border-color:var(--err-soft);}
 
 .muted{color:var(--muted);} .faint{color:var(--faint);}

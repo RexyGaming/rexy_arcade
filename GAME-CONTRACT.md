@@ -85,7 +85,8 @@ It ignores messages that aren't from its own origin and its own iframe.
 ### Control type
 
 `control` must be one of the keys in `Rexy.CONTROLS`
-(`rexy_wheels`, `hammerhead_wheels`, `mouse`, `gamepad`, `touchscreen`). Anything
+(`rexy_wheels`, `hammerhead_wheels`, `mouse`, `touchpad`, `gamepad`,
+`touchscreen`). Anything
 else is rejected by the database with `invalid control …`. Build the picker from
 `Rexy.CONTROLS` rather than typing the keys out, and persist the choice in
 `localStorage` — at an event everyone on a stand uses the same hardware and
